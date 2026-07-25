@@ -1,8 +1,8 @@
 """Equation contracts for the Navier–Stokes Metamorphosis research track.
 
 This module deliberately contains residual definitions and typed parameters,
-not a claim of a Navier–Stokes proof.  It is designed for use by conventional
-solvers, PINNs, and dataset diagnostics.
+not a claim of a Navier–Stokes proof. It is designed for conventional solvers,
+PINNs, and dataset diagnostics.
 """
 
 from __future__ import annotations
@@ -24,6 +24,7 @@ class FluidParameters:
     kinematic_viscosity: float = 1.0e-3
     heat_capacity: float = 1.0
     thermal_conductivity: float = 1.0e-3
+    scalar_diffusivity: float = 1.0e-4
     thermal_expansion: float = 0.0
     reference_temperature: float = 0.0
 
@@ -36,18 +37,19 @@ class FluidParameters:
             raise ValueError("heat_capacity must be positive")
         if self.thermal_conductivity <= 0:
             raise ValueError("thermal_conductivity must be positive")
+        if self.scalar_diffusivity < 0:
+            raise ValueError("scalar_diffusivity cannot be negative")
 
 
 def spatial_gradient_scalar(value: Tensor, x: Tensor) -> Tensor:
     """Return ∇value for a scalar field sampled at x."""
-    grad = torch.autograd.grad(
+    return torch.autograd.grad(
         value,
         x,
         grad_outputs=torch.ones_like(value),
         create_graph=True,
         retain_graph=True,
     )[0]
-    return grad
 
 
 def divergence(vector: Tensor, x: Tensor) -> Tensor:
@@ -70,7 +72,7 @@ def divergence(vector: Tensor, x: Tensor) -> Tensor:
 def laplacian_scalar(value: Tensor, x: Tensor) -> Tensor:
     """Return Δvalue for a scalar field."""
     grad = spatial_gradient_scalar(value, x)
-    second_terms = []
+    terms = []
     for component in range(x.shape[-1]):
         second = torch.autograd.grad(
             grad[..., component],
@@ -79,11 +81,12 @@ def laplacian_scalar(value: Tensor, x: Tensor) -> Tensor:
             create_graph=True,
             retain_graph=True,
         )[0][..., component]
-        second_terms.append(second)
-    return torch.stack(second_terms, dim=-1).sum(dim=-1)
+        terms.append(second)
+    return torch.stack(terms, dim=-1).sum(dim=-1)
 
 
 def laplacian_vector(vector: Tensor, x: Tensor) -> Tensor:
+    """Return the componentwise vector Laplacian."""
     return torch.stack(
         [laplacian_scalar(vector[..., i], x) for i in range(vector.shape[-1])],
         dim=-1,
@@ -91,6 +94,7 @@ def laplacian_vector(vector: Tensor, x: Tensor) -> Tensor:
 
 
 def time_derivative(value: Tensor, t: Tensor) -> Tensor:
+    """Return ∂value/∂t for independently sampled batched points."""
     return torch.autograd.grad(
         value,
         t,
@@ -110,25 +114,34 @@ def navier_stokes_residual(
 ) -> tuple[Tensor, Tensor]:
     """Return momentum and incompressibility residuals.
 
-    Assumes pressure is already divided by any desired nondimensional scale.
+    Residual convention:
+        u_t + (u·∇)u + ∇p/ρ - νΔu - f_control = 0
+        ∇·u = 0
     """
     parameters.validate()
     dimension = velocity.shape[-1]
+    if dimension not in (2, 3) or x.shape[-1] != dimension:
+        raise ValueError("velocity and coordinates must describe 2D or 3D space")
     if control_force is None:
         control_force = torch.zeros_like(velocity)
     if control_force.shape != velocity.shape:
         raise ValueError("control_force must match velocity shape")
 
     du_dt = torch.stack(
-        [time_derivative(velocity[..., i], t).squeeze(-1) for i in range(dimension)],
+        [
+            time_derivative(velocity[..., i], t).squeeze(-1)
+            for i in range(dimension)
+        ],
         dim=-1,
     )
 
-    convection_components = []
-    for i in range(dimension):
-        grad_ui = spatial_gradient_scalar(velocity[..., i], x)
-        convection_components.append((velocity * grad_ui).sum(dim=-1))
-    convection = torch.stack(convection_components, dim=-1)
+    convection = torch.stack(
+        [
+            (velocity * spatial_gradient_scalar(velocity[..., i], x)).sum(dim=-1)
+            for i in range(dimension)
+        ],
+        dim=-1,
+    )
 
     pressure_gradient = spatial_gradient_scalar(pressure, x)
     diffusion = parameters.kinematic_viscosity * laplacian_vector(velocity, x)
@@ -140,8 +153,7 @@ def navier_stokes_residual(
         - diffusion
         - control_force
     )
-    continuity = divergence(velocity, x)
-    return momentum, continuity
+    return momentum, divergence(velocity, x)
 
 
 def temperature_residual(
@@ -156,10 +168,11 @@ def temperature_residual(
     parameters.validate()
     if heat_source is None:
         heat_source = torch.zeros_like(temperature)
+    if heat_source.shape != temperature.shape:
+        raise ValueError("heat_source must match temperature shape")
 
     dT_dt = time_derivative(temperature, t).squeeze(-1)
-    grad_T = spatial_gradient_scalar(temperature, x)
-    advection = (velocity * grad_T).sum(dim=-1)
+    advection = (velocity * spatial_gradient_scalar(temperature, x)).sum(dim=-1)
     diffusion = parameters.thermal_conductivity * laplacian_scalar(temperature, x)
 
     return (
@@ -169,3 +182,28 @@ def temperature_residual(
         - diffusion
         - heat_source
     )
+
+
+def passive_scalar_residual(
+    scalar: Tensor,
+    velocity: Tensor,
+    x: Tensor,
+    t: Tensor,
+    parameters: FluidParameters,
+    source: Tensor | None = None,
+) -> Tensor:
+    """Return residual of c_t + u·∇c = κ_c Δc + source.
+
+    The passive scalar is the first computational representation of the marked
+    substance X. It tracks material concentration without changing momentum.
+    """
+    parameters.validate()
+    if source is None:
+        source = torch.zeros_like(scalar)
+    if source.shape != scalar.shape:
+        raise ValueError("source must match scalar shape")
+
+    dc_dt = time_derivative(scalar, t).squeeze(-1)
+    advection = (velocity * spatial_gradient_scalar(scalar, x)).sum(dim=-1)
+    diffusion = parameters.scalar_diffusivity * laplacian_scalar(scalar, x)
+    return dc_dt + advection - diffusion - source
