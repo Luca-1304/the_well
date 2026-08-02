@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "luca-nasa-data-hub"
+version = "1.0.0"
+description = "Standalone local dashboard and client for NASA Open APIs and EONET"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+nasa-data-hub = "nasa_data_hub.cli:main"
+
+[tool.setuptools]
+packages = ["nasa_data_hub"]
+
+[tool.setuptools.package-data]
+nasa_data_hub = ["static/*.html"]
