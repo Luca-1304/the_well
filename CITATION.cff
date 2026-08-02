@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+title: NASA Data Hub
+message: If you use this software, please cite this repository.
+type: software
+authors:
+  - family-names: Panayiotou
+    given-names: Luca
+repository-code: https://github.com/Luca-1304/nasa-data-hub
+license: MIT
+version: 1.0.0
+date-released: 2026-08-02

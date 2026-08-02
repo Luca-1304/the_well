@@ -1,180 +1,119 @@
-<div align="center">
-    <img src="https://raw.githubusercontent.com/PolymathicAI/the_well/master/docs/assets/images/the_well_color.svg" width="60%"/>
-</div>
+# NASA Data Hub
 
-<br>
+A standalone Python dashboard and command-line client for selected public NASA APIs and NASA EONET.
 
-<div align="center">
+> Independent open-source project by Luca Panayiotou. Not affiliated with, endorsed by, or operated by NASA.
 
-![Test Workflow](https://github.com/PolymathicAI/the_well/actions/workflows/tests.yaml/badge.svg)
-[![PyPI](https://img.shields.io/pypi/v/the_well)](https://pypi.org/project/the-well/)
-[![Docs](https://img.shields.io/badge/docs-latest---?color=25005a&labelColor=grey)](https://polymathic-ai.org/the_well/)
-[![arXiv](https://img.shields.io/badge/arXiv-2412.00568---?logo=arXiv&labelColor=b31b1b&color=grey)](https://arxiv.org/abs/2412.00568)
-[![NeurIPS](https://img.shields.io/badge/NeurIPS-2024---?logo=https%3A%2F%2Fneurips.cc%2Fstatic%2Fcore%2Fimg%2FNeurIPS-logo.svg&labelColor=68448B&color=b3b3b3)](https://openreview.net/forum?id=00Sx577BT3)
-[![HuggingFace](https://img.shields.io/badge/datasets-%20?logo=huggingface&logoColor=%23FFD21E&label=Hugging%20Face&labelColor=%236B7280&color=%23FFD21E
-)](https://huggingface.co/collections/polymathic-ai/the-well-67e129f4ca23e0447395d74c)
+## What it does
 
-</div>
+- Serves a local browser dashboard.
+- Keeps the API key on the Python server rather than in browser JavaScript.
+- Supports Astronomy Picture of the Day (APOD).
+- Supports near-Earth-object feeds, lookup and browsing.
+- Supports DONKI space-weather events.
+- Supports EONET natural-event data without sending an API key.
+- Provides a dependency-free Python client and CLI.
+- Adds bounded retry/backoff, safe caching, rate-limit metadata and actionable errors.
+- Works immediately with NASA's limited public `DEMO_KEY`.
 
-# The Well: 15TB of Physics Simulations
+## Quick start
 
-
-Welcome to the Well, a large-scale collection of machine learning datasets containing numerical simulations of a wide variety of spatiotemporal physical systems. The Well draws from domain scientists and numerical software developers to provide 15TB of data across 16 datasets covering diverse domains such as biological systems, fluid dynamics, acoustic scattering, as well as magneto-hydrodynamic simulations of extra-galactic fluids or supernova explosions. These datasets can be used individually or as part of a broader benchmark suite for accelerating research in machine learning and computational sciences.
-
-## Tap into the Well
-
-Once the Well package installed and the data downloaded you can use them in your training pipeline.
-
-```python
-from the_well.data import WellDataset
-from torch.utils.data import DataLoader
-
-trainset = WellDataset(
-    well_base_path="path/to/base",
-    well_dataset_name="name_of_the_dataset",
-    well_split_name="train"
-)
-train_loader = DataLoader(trainset)
-
-for batch in train_loader:
-    ...
-```
-
-For more information regarding the interface, please refer to the [API](https://github.com/PolymathicAI/the_well/tree/master/docs/api.md) and the [tutorials](https://github.com/PolymathicAI/the_well/blob/master/docs/tutorials/dataset.ipynb).
-
-### Installation
-
-If you plan to use The Well datasets to train or evaluate deep learning models, we recommend to use a machine with enough computing resources.
-We also recommend creating a new Python (>=3.10) environment to install the Well. For instance, with [venv](https://docs.python.org/3/library/venv.html):
-
-```
-python -m venv path/to/env
-source path/to/env/activate/bin
-```
-
-#### From PyPI
-
-The Well package can be installed directly from PyPI.
-
-```
-pip install the_well
-```
-
-#### From Source
-
-It can also be installed from source. For this, clone the [repository](https://github.com/PolymathicAI/the_well) and install the package with its dependencies.
-
-```
-git clone https://github.com/PolymathicAI/the_well
-cd the_well
-pip install .
-```
-
-Depending on your acceleration hardware, you can specify `--extra-index-url` to install the relevant PyTorch version. For example, use
-
-```
-pip install . --extra-index-url https://download.pytorch.org/whl/cu121
-```
-
-to install the dependencies built for CUDA 12.1.
-
-#### Benchmark Dependencies
-
-If you want to run the benchmarks, you should install additional dependencies.
-
-```
-pip install the_well[benchmark]
-```
-
-### Downloading the Data
-
-The Well datasets range between 6.9GB and 5.1TB of data each, for a total of 15TB for the full collection. Ensure that your system has enough free disk space to accomodate the datasets you wish to download.
-
-Once `the_well` is installed, you can use the `the-well-download` command to download any dataset of The Well.
-
-```
-the-well-download --base-path path/to/base --dataset active_matter --split train
-```
-
-If `--dataset` and `--split` are omitted, all datasets and splits will be downloaded. This could take a while!
-
-### Streaming from Hugging Face
-
-Most of the Well datasets are also hosted on [Hugging Face](https://huggingface.co/collections/polymathic-ai/the-well-67e129f4ca23e0447395d74c). Data can be streamed directly from the hub using the following code.
-
-```python
-from the_well.data import WellDataset
-from torch.utils.data import DataLoader
-
-# The following line may take a couple of minutes to instantiate the datamodule
-trainset = WellDataset(
-    well_base_path="hf://datasets/polymathic-ai/",  # access from HF hub
-    well_dataset_name="active_matter",
-    well_split_name="train",
-)
-train_loader = DataLoader(trainset)
-
-for batch in train_loader:
-    ...
-```
-
-For better performance in large training, we advise [downloading the data locally](#downloading-the-data) instead of streaming it over the network.
-
-## Benchmark
-
-### Train Models on the Well
-
-The repository allows benchmarking surrogate models on the different datasets that compose the Well. Some state-of-the-art models are already implemented in [`models`](https://github.com/PolymathicAI/the_well/tree/master/the_well/benchmark/models), while [dataset classes](https://github.com/PolymathicAI/the_well/tree/master/the_well/data) handle the raw data of the Well.
-The benchmark relies on [a training script](https://github.com/PolymathicAI/the_well/blob/master/the_well/benchmark/train.py) that uses [hydra](https://hydra.cc/) to instantiate various classes (e.g. dataset, model, optimizer) from [configuration files](https://github.com/PolymathicAI/the_well/tree/master/the_well/benchmark/configs).
-
-For instance, to run the training script of default FNO architecture on the active matter dataset, launch the following commands:
+Requires Python 3.10 or newer.
 
 ```bash
-cd the_well/benchmark
-python train.py experiment=fno server=local data=active_matter
+python -m venv .venv
+# macOS/Linux
+. .venv/bin/activate
+# Windows PowerShell
+# .venv\Scripts\Activate.ps1
+
+python -m pip install --upgrade pip setuptools wheel
+python -m pip install --editable .
+python -m nasa_data_hub health
+python -m nasa_data_hub serve --open
 ```
 
-Each argument corresponds to a specific configuration file. In the command above `server=local` indicates the training script to use [`local.yaml`](https://github.com/PolymathicAI/the_well/tree/master/the_well/benchmark/configs/server/local.yaml), which just declares the relative path to the data. The configuration can be overridden directly or edited with new YAML files. Please refer to [hydra documentation](https://hydra.cc/) for editing configuration.
+The dashboard opens at `http://127.0.0.1:8765`.
 
-You can use this command within a sbatch script to launch the training with Slurm.
+You can also use the included launchers:
 
-### Load Benchmarked Model Checkpoints
-
-The model benchmarked in the original paper of the Well have been designed as a a simple baseline. They should not be considered as state-of-the-art. We hope that the community will build upon these results to develop better architectures for PDE surrogate modeling.
-
-Most of the checkpoints of the models are available on [Hugging Face](https://huggingface.co/collections/polymathic-ai/the-well-benchmark-models-67e69bd7cd8e60229b5cd43e). To load a specific checkpoint follow the example below of the FNO model trained on the `active_matter` dataset.
-
-```python
-from the_well.benchmark.models import FNO
-
-model = FNO.from_pretrained("polymathic-ai/FNO-active_matter")
+```powershell
+.\start.ps1
 ```
 
-## Usage notes
-
-- The dataset `viscoelastic_instability` has been deprecated due to processing errors in the data. It remains available for backwards comparisons. However `viscoelastic_instability_v2` contains the same data without the processing error.
-
-## Citation
-
-This project has been led by the <a href="https://polymathic-ai.org/">Polymathic AI</a> organization, in collaboration with researchers from the Flatiron Institute, University of Colorado Boulder, University of Cambridge, New York University, Rutgers University, Cornell University, University of Tokyo, Los Alamos Natioinal Laboratory, University of California, Berkeley, Princeton University, CEA DAM, and University of Liège.
-
-If you find this project useful for your research, please consider citing
-
-```
-@article{ohana2024well,
-  title={The well: a large-scale collection of diverse physics simulations for machine learning},
-  author={Ohana, Ruben and McCabe, Michael and Meyer, Lucas and Morel, Rudy and Agocs, Fruzsina and Beneitez, Miguel and Berger, Marsha and Burkhart, Blakesly and Dalziel, Stuart and Fielding, Drummond and others},
-  journal={Advances in Neural Information Processing Systems},
-  volume={37},
-  pages={44989--45037},
-  year={2024}
-}
+```bash
+chmod +x start.sh
+./start.sh
 ```
 
-## Contact
+## API-key handling
 
-For questions regarding this project, please contact [Ruben Ohana](https://rubenohana.github.io/) and [Michael McCabe](https://mikemccabe210.github.io/) at {rohana,mmccabe}@flatironinstitute.org.
+The application falls back to NASA's public `DEMO_KEY` when `NASA_API_KEY` is empty. For higher limits:
 
-## Bug Reports and Feature Requests
+1. Generate a new key through NASA's official API portal.
+2. Copy `.env.example` to `.env`.
+3. Put the key only in the local `.env` file or a hosting provider's encrypted secret store.
 
-To report a bug (in the data or the code), request a feature or simply ask a question, you can [open an issue](https://github.com/PolymathicAI/the_well/issues) on the [repository](https://github.com/PolymathicAI/the_well).
+Never paste a real key into source, issues, pull requests, workflow inputs or browser code. A key previously shared in chat must be treated as exposed and rotated.
+
+## Commands
+
+```bash
+nasa-data-hub health
+nasa-data-hub doctor
+nasa-data-hub serve --open
+nasa-data-hub apod --date 2026-08-02
+nasa-data-hub neo --start 2026-08-02 --end 2026-08-05
+nasa-data-hub neo-lookup 3542519
+nasa-data-hub neo-browse --page 0 --size 20
+nasa-data-hub donki FLR --start 2026-08-01 --end 2026-08-02
+nasa-data-hub eonet --status open --days 14 --category wildfires
+```
+
+## Verification
+
+The source state used for this standalone export completed:
+
+- the offline unit suite on Python 3.10, 3.11, 3.12 and 3.13;
+- 15 consecutive clean build/install/runtime cycles on Linux;
+- 15 consecutive clean build/install/runtime cycles on Windows;
+- zero failures in those 30 NASA cycles.
+
+Every clean cycle compiled the package, ran the offline tests, validated the OS launcher, built a wheel, created a fresh environment, installed the wheel, checked the installed command, started the packaged server with deterministic upstream fixtures, exercised the dashboard and every local API route, and checked expected error responses.
+
+See [`docs/TEST_EVIDENCE.md`](docs/TEST_EVIDENCE.md). These results prove the tested deterministic software paths for the recorded source state. They do not prove that external services will never be unavailable or that an undiscovered defect is impossible.
+
+A separate registered-key live soak exists but is not counted as completed until it runs using a newly rotated repository secret.
+
+## Test locally
+
+```bash
+python -m compileall -q nasa_data_hub
+python -m unittest discover -s tests -v
+python scripts/reliability_gate.py --phase 1 --passes 1
+```
+
+## Project structure
+
+```text
+nasa_data_hub/       Python package, server, CLI and browser dashboard
+scripts/             deterministic and live reliability probes
+tests/               offline unit tests
+docs/                evidence and operating notes
+.github/workflows/   test and reliability gates
+```
+
+## Security boundary
+
+- The browser communicates only with the local Python server.
+- The server adds the key only to authenticated `api.nasa.gov` requests.
+- EONET requests never receive the key.
+- Cache identities are built from URLs with the secret excluded.
+- `.env`, private keys, caches, builds and virtual environments are ignored.
+- Real live-soak credentials must come from the process environment or GitHub Actions secrets.
+
+See [`SECURITY.md`](SECURITY.md).
+
+## Licence
+
+MIT. See [`LICENSE`](LICENSE).

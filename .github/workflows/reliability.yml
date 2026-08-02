@@ -1,0 +1,59 @@
+name: Cross-platform 10+10 reliability
+
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      run_registered_live_soak:
+        description: Run registered-key NASA API 10+10 live soak
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  deterministic:
+    name: ${{ matrix.os }} deterministic 10+10
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install wheel prerequisites
+        run: python -m pip install --disable-pip-version-check "setuptools>=68" wheel
+      - name: Phase 1 — ten clean cycles
+        run: python scripts/reliability_gate.py --phase 1 --passes 10
+      - name: Phase 2 — ten confirmation cycles
+        run: python scripts/reliability_gate.py --phase 2 --passes 10
+
+  registered-live-soak:
+    name: Registered-key live NASA APIs 10+10
+    if: github.event_name == 'workflow_dispatch' && inputs.run_registered_live_soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Require rotated registered key
+        shell: bash
+        run: |
+          if [ -z "${NASA_API_KEY:-}" ] || [ "$NASA_API_KEY" = "DEMO_KEY" ]; then
+            echo "A newly rotated NASA_API_KEY repository secret is required." >&2
+            exit 1
+          fi
+      - name: Phase 1 — ten live API-family passes
+        run: python scripts/live_probe.py --passes 10 --require-personal --label registered-phase-1
+      - name: Phase 2 — ten live confirmation passes
+        run: python scripts/live_probe.py --passes 10 --require-personal --label registered-phase-2
