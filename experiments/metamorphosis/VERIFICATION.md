@@ -19,4 +19,14 @@ python -m the_well.research.metamorphosis.run_analytic_baseline
 pytest tests/test_metamorphosis.py
 ```
 
+## Verified evidence
+
+On 2 August 2026, GitHub Actions run 50 passed after the executable modules were moved into the installed `the_well.research.metamorphosis` package and duplicate top-level Python modules were removed:
+
+- pre-commit: passed;
+- full parent suite on Python 3.10: passed;
+- full parent suite on Python 3.13: passed.
+
+This evidence records software behaviour for that exact branch state. Any later code change or changed merge context must pass the gate again.
+
 A green software-verification run establishes only that the implemented equations, diagnostics, fixtures and packaging behave as tested. It does not establish the proposed redistribution hypothesis, physical effectiveness, or a Navier–Stokes proof.
