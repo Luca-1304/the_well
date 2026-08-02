@@ -3,12 +3,17 @@
 from __future__ import annotations
 
 import argparse
+import sys
 import tempfile
 from datetime import date
 from pathlib import Path
 
-from nasa_data_hub.client import NASAClient
-from nasa_data_hub.config import Settings
+APP_DIR = Path(__file__).resolve().parents[1]
+if str(APP_DIR) not in sys.path:
+    sys.path.insert(0, str(APP_DIR))
+
+from nasa_data_hub.client import NASAClient  # noqa: E402
+from nasa_data_hub.config import Settings  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
