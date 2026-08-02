@@ -10,7 +10,9 @@ from typing import Mapping
 DEMO_KEY = "DEMO_KEY"
 
 
-def load_dotenv(path: str | os.PathLike[str] = ".env", *, override: bool = False) -> bool:
+def load_dotenv(
+    path: str | os.PathLike[str] = ".env", *, override: bool = False
+) -> bool:
     """Load a small, dependency-free .env file.
 
     Supports KEY=value, optional quotes, blank lines, and comments.
