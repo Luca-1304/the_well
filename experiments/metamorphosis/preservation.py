@@ -92,7 +92,9 @@ def mass_fidelity(
 
     initial_mass = marked_scalar_mass(initial, cell_volume)
     current_mass = marked_scalar_mass(current, cell_volume)
-    relative_error = (current_mass - initial_mass).abs() / (initial_mass.abs() + epsilon)
+    relative_error = (current_mass - initial_mass).abs() / (
+        initial_mass.abs() + epsilon
+    )
     return torch.clamp(1.0 - relative_error, min=0.0, max=1.0)
 
 
@@ -126,6 +128,8 @@ def compute_marked_scalar_metrics(
     cell_volume: float = 1.0,
 ) -> MarkedScalarMetrics:
     return MarkedScalarMetrics(
-        mass_fidelity=float(mass_fidelity(initial, current, cell_volume).detach().cpu()),
+        mass_fidelity=float(
+            mass_fidelity(initial, current, cell_volume).detach().cpu()
+        ),
         soft_overlap=float(soft_overlap(initial, current).detach().cpu()),
     )
