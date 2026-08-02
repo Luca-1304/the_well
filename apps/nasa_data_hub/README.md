@@ -83,7 +83,7 @@ apps/nasa_data_hub/
 ├── tests/               Offline unit tests
 ├── .env.example         Safe configuration template
 ├── start.ps1            Windows launcher
-├── start.sh             macOS/Linux launcher
+├── start.sh              macOS/Linux launcher
 └── README.md            This guide
 ```
 
@@ -106,6 +106,17 @@ python -m unittest discover -s tests -v
 ```
 
 The repository workflow runs these tests on Python 3.10, 3.11, 3.12, and 3.13 without installing the large root project.
+
+## Reliability gates
+
+The `NASA Data Hub 20-pass reliability` workflow separates two kinds of evidence:
+
+1. **Deterministic application reliability** runs automatically on relevant pull requests and pushes to `master`. Linux and Windows each perform ten complete passes followed by ten confirmation passes, covering build, clean installation, tests, startup and local route probes.
+2. **Registered-key live API reliability** is a separate manual workflow option. It performs ten complete NASA API-family passes followed by ten confirmation passes and fails closed unless the repository has a newly rotated `NASA_API_KEY` secret.
+
+A normal green workflow does **not** claim that the registered-key live 10+10 soak ran. In GitHub Actions, that job is visibly skipped unless **Run workflow → Run the registered-key NASA API 10+10 live soak** is selected.
+
+Do not paste the key into a workflow input, issue, pull request or source file. Add it through **Repository Settings → Secrets and variables → Actions → New repository secret**, using the name `NASA_API_KEY`.
 
 ## Deployment note
 
