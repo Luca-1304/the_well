@@ -21,7 +21,9 @@ class ConfigTests(unittest.TestCase):
     def test_dotenv_loader_preserves_existing_values(self):
         with tempfile.TemporaryDirectory() as folder:
             path = Path(folder) / ".env"
-            path.write_text('NASA_API_KEY="from-file"\nNASA_HUB_PORT=9000\n', encoding="utf-8")
+            path.write_text(
+                'NASA_API_KEY="from-file"\nNASA_HUB_PORT=9000\n', encoding="utf-8"
+            )
             with patch.dict(os.environ, {"NASA_API_KEY": "existing"}, clear=True):
                 self.assertTrue(load_dotenv(path))
                 self.assertEqual(os.environ["NASA_API_KEY"], "existing")
