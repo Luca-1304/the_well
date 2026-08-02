@@ -5,18 +5,18 @@ import math
 import pytest
 import torch
 
-from experiments.metamorphosis.equations import (
+from the_well.research.metamorphosis.equations import (
     FluidParameters,
     navier_stokes_residual,
     passive_scalar_residual,
     temperature_residual,
 )
-from experiments.metamorphosis.metrics import (
+from the_well.research.metamorphosis.metrics import (
     compute_metrics,
     vorticity,
     vorticity_balance_terms,
 )
-from experiments.metamorphosis.preservation import (
+from the_well.research.metamorphosis.preservation import (
     compute_marked_scalar_metrics,
     mass_fidelity,
     soft_overlap,
