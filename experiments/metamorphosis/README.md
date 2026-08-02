@@ -4,6 +4,8 @@
 
 This directory isolates a falsifiable research programme built around the 3D incompressible Navier–Stokes existence-and-smoothness problem, while allowing controlled-flow, thermal, optical, magnetic, preservation, and machine-learning extensions to be tested without confusing them with a formal proof.
 
+The executable Python implementation is installed under `the_well.research.metamorphosis`; this directory retains the research specification, configuration and verification contract.
+
 The primary finite-time continuation target is:
 
 \[
@@ -164,10 +166,10 @@ Not implemented yet:
 
 ## Running the analytic baseline
 
-From the repository root:
+From the repository root after installing the package:
 
 ```bash
-python -m experiments.metamorphosis.run_analytic_baseline
+python -m the_well.research.metamorphosis.run_analytic_baseline
 pytest tests/test_metamorphosis.py
 ```
 
