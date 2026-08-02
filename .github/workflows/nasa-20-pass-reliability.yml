@@ -1,11 +1,22 @@
 name: NASA Data Hub 20-pass reliability
 
 on:
+  push:
+    branches: [master]
+    paths:
+      - "apps/nasa_data_hub/**"
+      - ".github/workflows/nasa-20-pass-reliability.yml"
   pull_request:
     paths:
       - "apps/nasa_data_hub/**"
       - ".github/workflows/nasa-20-pass-reliability.yml"
   workflow_dispatch:
+    inputs:
+      run_registered_live_soak:
+        description: "Run the registered-key NASA API 10+10 live soak"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -87,12 +98,13 @@ jobs:
 
   registered-live-soak:
     name: Registered-key live APIs 10-pass + 10-pass confirmation
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.run_registered_live_soak }}
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: apps/nasa_data_hub
     env:
-      NASA_API_KEY: ${{ secrets.NASA_API_KEY || 'DEMO_KEY' }}
+      NASA_API_KEY: ${{ secrets.NASA_API_KEY }}
       NASA_TIMEOUT_SECONDS: "30"
       NASA_MAX_RETRIES: "3"
 
@@ -102,12 +114,20 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Require a rotated registered NASA API key
+        shell: bash
+        run: |
+          if [ -z "${NASA_API_KEY:-}" ] || [ "$NASA_API_KEY" = "DEMO_KEY" ]; then
+            echo "::error::A rotated registered NASA_API_KEY repository secret is required for the live 10+10 soak."
+            exit 1
+          fi
+
       - name: Live Phase 1 — ten complete API-family passes
         run: >-
           python scripts/live_probe.py --passes 10 --require-personal
-          --skip-if-demo --label live-phase1
+          --label live-phase1
 
       - name: Live Phase 2 — ten API-family confirmation passes
         run: >-
           python scripts/live_probe.py --passes 10 --require-personal
-          --skip-if-demo --label live-phase2
+          --label live-phase2
