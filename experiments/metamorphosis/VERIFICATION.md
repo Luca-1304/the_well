@@ -8,13 +8,14 @@ Required evidence:
 - the full parent test suite passes on Python 3.10;
 - the full parent test suite passes on Python 3.13;
 - `tests/test_metamorphosis.py` is collected within that suite;
+- the analytic runner imports from the installed `the_well` package;
 - the analytic runner and tests remain provider-free and deterministic;
 - no result is described as evidence of three-dimensional global regularity.
 
 Local focused commands:
 
 ```bash
-python -m experiments.metamorphosis.run_analytic_baseline
+python -m the_well.research.metamorphosis.run_analytic_baseline
 pytest tests/test_metamorphosis.py
 ```
 
