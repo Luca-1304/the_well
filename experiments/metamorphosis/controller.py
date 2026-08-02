@@ -57,10 +57,7 @@ def vorticity_weighted_damping_force(
     local_weight = omega_magnitude / (max_vorticity + config.epsilon)
 
     raw_force = (
-        -config.proportional_gain
-        * error
-        * local_weight.unsqueeze(-1)
-        * velocity
+        -config.proportional_gain * error * local_weight.unsqueeze(-1) * velocity
     )
     magnitude = torch.linalg.vector_norm(raw_force, dim=-1, keepdim=True)
     scale = torch.clamp(
