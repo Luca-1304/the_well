@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["the_well*", "integrations*"]
+include = ["the_well*"]
 
 [tool.setuptools.package-data]
 the_well = ["utils/registry.yaml"]
@@ -62,7 +62,6 @@ tracker = "https://github.com/PolymathicAI/the_well/issues"
 
 [project.scripts]
 the-well-download = "the_well.utils.download:main"
-the-well-nasa = "integrations.nasa.nasa_client:main"
 
 [project.optional-dependencies]
 benchmark = [

@@ -1,1 +1,1 @@
-"""Optional external data integrations for The Well."""
+"""Compatibility namespace for external data integrations."""
