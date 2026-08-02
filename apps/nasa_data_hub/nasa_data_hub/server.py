@@ -59,7 +59,10 @@ class HubHandler(BaseHTTPRequestHandler):
             )
         except Exception:
             self._json(
-                {"ok": False, "error": "Unexpected server error. Check the terminal log."},
+                {
+                    "ok": False,
+                    "error": "Unexpected server error. Check the terminal log.",
+                },
                 HTTPStatus.INTERNAL_SERVER_ERROR,
             )
             raise
@@ -110,7 +113,9 @@ class HubHandler(BaseHTTPRequestHandler):
                 geojson=_first(query, "geojson") == "true",
             )
         else:
-            self._json({"ok": False, "error": "Unknown API route"}, HTTPStatus.NOT_FOUND)
+            self._json(
+                {"ok": False, "error": "Unknown API route"}, HTTPStatus.NOT_FOUND
+            )
             return
 
         self._json(
@@ -136,7 +141,9 @@ class HubHandler(BaseHTTPRequestHandler):
             self.send_error(HTTPStatus.NOT_FOUND)
             return
         content = target.read_bytes()
-        content_type = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        content_type = (
+            mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+        )
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", f"{content_type}; charset=utf-8")
         self.send_header("Content-Length", str(len(content)))
