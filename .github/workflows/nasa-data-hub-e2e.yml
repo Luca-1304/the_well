@@ -1,0 +1,242 @@
+name: NASA Data Hub E2E Validation
+
+on:
+  pull_request:
+    paths:
+      - "apps/nasa_data_hub/**"
+      - ".github/workflows/nasa-data-hub-e2e.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  linux-e2e:
+    name: Linux live and packaged E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/nasa_data_hub
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile and run all offline tests
+        run: |
+          python -m compileall -q nasa_data_hub
+          python -m unittest discover -s tests -v
+          python -m nasa_data_hub --env-file /tmp/missing-nasa-env health
+          bash -n start.sh
+
+      - name: Verify frontend and source do not contain credentials
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          html = Path("nasa_data_hub/static/index.html").read_text(encoding="utf-8")
+          lowered = html.lower()
+          assert "nasa_api_key" not in lowered
+          assert "api_key=" not in lowered
+          assert "127.0.0.1" not in html, "frontend should use relative local API routes"
+          assert "/api/health" in html
+          assert "/api/apod" in html
+          assert "/api/neo" in html
+          assert "/api/donki" in html
+          assert "/api/eonet" in html
+          print("Frontend credential isolation and routes: passed")
+          PY
+
+      - name: Build and install the standalone wheel in a clean environment
+        run: |
+          python -m pip install --disable-pip-version-check "setuptools>=68" wheel
+          rm -rf dist /tmp/nasa-hub-venv
+          python -m pip wheel . --no-deps --no-build-isolation -w dist
+          python -m venv /tmp/nasa-hub-venv
+          /tmp/nasa-hub-venv/bin/python -m pip install --disable-pip-version-check --no-deps dist/*.whl
+          /tmp/nasa-hub-venv/bin/nasa-data-hub --env-file /tmp/missing-nasa-env health > /tmp/installed-health.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          payload = json.loads(Path("/tmp/installed-health.json").read_text())
+          assert payload["ok"] is True
+          assert payload["key_mode"] == "demo"
+          print("Installed console command: passed")
+          PY
+
+      - name: Exercise every live CLI data family with DEMO_KEY
+        env:
+          NASA_API_KEY: DEMO_KEY
+          NASA_CACHE_DIR: /tmp/nasa-hub-cli-cache
+        run: |
+          rm -rf /tmp/nasa-hub-cli-cache
+          python -m nasa_data_hub --env-file /tmp/missing-nasa-env doctor > /tmp/doctor.json
+          python -m nasa_data_hub --env-file /tmp/missing-nasa-env apod --date 2025-01-01 > /tmp/apod.json
+          python -m nasa_data_hub --env-file /tmp/missing-nasa-env neo --start 2025-01-01 --end 2025-01-01 > /tmp/neo.json
+          python -m nasa_data_hub --env-file /tmp/missing-nasa-env donki FLR --start 2025-01-01 --end 2025-01-02 > /tmp/donki.json
+          python -m nasa_data_hub --env-file /tmp/missing-nasa-env eonet --status open --limit 2 > /tmp/eonet.json
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          doctor = json.loads(Path("/tmp/doctor.json").read_text())
+          apod = json.loads(Path("/tmp/apod.json").read_text())
+          neo = json.loads(Path("/tmp/neo.json").read_text())
+          donki = json.loads(Path("/tmp/donki.json").read_text())
+          eonet = json.loads(Path("/tmp/eonet.json").read_text())
+
+          assert doctor["ok"] is True and doctor["live_request"] == "passed"
+          assert isinstance(apod, dict) and apod.get("title") and apod.get("date") == "2025-01-01"
+          assert isinstance(neo, dict) and "near_earth_objects" in neo
+          assert isinstance(donki, list)
+          assert isinstance(eonet, dict) and isinstance(eonet.get("events"), list)
+          print("Live APOD, NEO, DONKI and EONET CLI calls: passed")
+          PY
+
+      - name: Start installed dashboard and test browser/API routes end to end
+        env:
+          NASA_API_KEY: DEMO_KEY
+          NASA_CACHE_DIR: /tmp/nasa-hub-server-cache
+        run: |
+          rm -rf /tmp/nasa-hub-server-cache
+          /tmp/nasa-hub-venv/bin/nasa-data-hub --env-file /tmp/missing-nasa-env serve --host 127.0.0.1 --port 8765 > /tmp/nasa-hub.log 2>&1 &
+          echo $! > /tmp/nasa-hub.pid
+          python - <<'PY'
+          import json
+          import time
+          from urllib.error import HTTPError
+          from urllib.request import urlopen
+
+          base = "http://127.0.0.1:8765"
+          for _ in range(60):
+              try:
+                  with urlopen(base + "/api/health", timeout=2) as response:
+                      if response.status == 200:
+                          break
+              except Exception:
+                  time.sleep(0.25)
+          else:
+              raise AssertionError("Server did not become ready")
+
+          with urlopen(base + "/", timeout=10) as response:
+              html = response.read().decode("utf-8")
+              assert response.status == 200
+              assert "NASA Data Hub" in html
+              assert response.headers.get("Cache-Control") == "no-store"
+
+          routes = {
+              "/api/health": lambda body: body["ok"] is True and body["key_mode"] == "demo",
+              "/api/apod?date=2025-01-01": lambda body: body["ok"] is True and body["data"].get("title"),
+              "/api/neo?start=2025-01-01&end=2025-01-01": lambda body: body["ok"] is True and "near_earth_objects" in body["data"],
+              "/api/donki?type=FLR&start=2025-01-01&end=2025-01-02": lambda body: body["ok"] is True and isinstance(body["data"], list),
+              "/api/eonet?status=open&limit=2": lambda body: body["ok"] is True and isinstance(body["data"].get("events"), list),
+          }
+          for path, validate in routes.items():
+              with urlopen(base + path, timeout=30) as response:
+                  body = json.loads(response.read().decode("utf-8"))
+                  assert response.status == 200, path
+                  assert response.headers.get("Cache-Control") == "no-store", path
+                  assert validate(body), (path, body)
+
+          for path, expected in (("/api/neo", 400), ("/api/unknown", 404), ("/missing.txt", 404)):
+              try:
+                  urlopen(base + path, timeout=10)
+              except HTTPError as exc:
+                  assert exc.code == expected, (path, exc.code)
+                  if path.startswith("/api/"):
+                      body = json.loads(exc.read().decode("utf-8"))
+                      assert body["ok"] is False
+              else:
+                  raise AssertionError(f"{path} should return {expected}")
+
+          print("Packaged dashboard, local proxy, live routes and error responses: passed")
+          PY
+
+      - name: Stop dashboard
+        if: always()
+        run: |
+          if [ -f /tmp/nasa-hub.pid ]; then
+            kill "$(cat /tmp/nasa-hub.pid)" 2>/dev/null || true
+          fi
+          if [ -f /tmp/nasa-hub.log ]; then
+            cat /tmp/nasa-hub.log
+          fi
+
+  windows-e2e:
+    name: Windows launcher and packaged dashboard
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/nasa_data_hub
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Compile, offline tests and PowerShell launcher syntax
+        shell: pwsh
+        run: |
+          python -m compileall -q nasa_data_hub
+          python -m unittest discover -s tests -v
+          python -m nasa_data_hub --env-file "$env:RUNNER_TEMP\missing-nasa-env" health
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            (Resolve-Path .\start.ps1),
+            [ref]$tokens,
+            [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | Format-List | Out-String | Write-Error
+            exit 1
+          }
+          Write-Host "PowerShell launcher syntax: passed"
+
+      - name: Build and install wheel
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check "setuptools>=68" wheel
+          Remove-Item -Recurse -Force dist,.venv-e2e -ErrorAction SilentlyContinue
+          python -m pip wheel . --no-deps --no-build-isolation -w dist
+          python -m venv .venv-e2e
+          $wheel = (Get-ChildItem dist\*.whl | Select-Object -First 1).FullName
+          .\.venv-e2e\Scripts\python.exe -m pip install --disable-pip-version-check --no-deps $wheel
+          .\.venv-e2e\Scripts\nasa-data-hub.exe --env-file "$env:RUNNER_TEMP\missing-nasa-env" health
+
+      - name: Start installed dashboard and verify Windows local routes
+        shell: pwsh
+        run: |
+          $out = Join-Path $env:RUNNER_TEMP "nasa-win.out"
+          $err = Join-Path $env:RUNNER_TEMP "nasa-win.err"
+          $proc = Start-Process ".\.venv-e2e\Scripts\nasa-data-hub.exe" `
+            -ArgumentList @("--env-file", "$env:RUNNER_TEMP\missing-nasa-env", "serve", "--host", "127.0.0.1", "--port", "8766") `
+            -PassThru -RedirectStandardOutput $out -RedirectStandardError $err
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              try {
+                $health = Invoke-RestMethod -Uri "http://127.0.0.1:8766/api/health" -TimeoutSec 2
+                if ($health.ok) { $ready = $true; break }
+              } catch {
+                Start-Sleep -Milliseconds 250
+              }
+            }
+            if (-not $ready) { throw "Windows server did not become ready" }
+            if ($health.key_mode -ne "demo") { throw "Expected demo key mode" }
+            $page = Invoke-WebRequest -Uri "http://127.0.0.1:8766/" -TimeoutSec 10
+            if ($page.StatusCode -ne 200 -or $page.Content -notmatch "NASA Data Hub") {
+              throw "Packaged dashboard did not load"
+            }
+            Write-Host "Windows packaged server and dashboard: passed"
+          } finally {
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            if (Test-Path $out) { Get-Content $out }
+            if (Test-Path $err) { Get-Content $err }
+          }
