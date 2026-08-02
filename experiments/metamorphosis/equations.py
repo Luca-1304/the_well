@@ -128,10 +128,7 @@ def navier_stokes_residual(
         raise ValueError("control_force must match velocity shape")
 
     du_dt = torch.stack(
-        [
-            time_derivative(velocity[..., i], t).squeeze(-1)
-            for i in range(dimension)
-        ],
+        [time_derivative(velocity[..., i], t).squeeze(-1) for i in range(dimension)],
         dim=-1,
     )
 
@@ -176,9 +173,7 @@ def temperature_residual(
     diffusion = parameters.thermal_conductivity * laplacian_scalar(temperature, x)
 
     return (
-        parameters.density
-        * parameters.heat_capacity
-        * (dT_dt + advection)
+        parameters.density * parameters.heat_capacity * (dT_dt + advection)
         - diffusion
         - heat_source
     )
