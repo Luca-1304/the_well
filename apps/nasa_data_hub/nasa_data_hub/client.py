@@ -244,7 +244,11 @@ class NASAClient:
         thumbnails: bool = True,
     ) -> dict[str, Any] | list[dict[str, Any]]:
         modes = sum(
-            (day is not None, start_date is not None or end_date is not None, count is not None)
+            (
+                day is not None,
+                start_date is not None or end_date is not None,
+                count is not None,
+            )
         )
         if modes > 1:
             raise ValueError("Choose one APOD mode: date, range, or random count")
@@ -267,7 +271,9 @@ class NASAClient:
             authenticated=True,
         )
 
-    def neo_feed(self, start_date: date, end_date: date | None = None) -> dict[str, Any]:
+    def neo_feed(
+        self, start_date: date, end_date: date | None = None
+    ) -> dict[str, Any]:
         end = end_date or start_date
         if end < start_date:
             raise ValueError("NEO end_date cannot precede start_date")
