@@ -29,7 +29,9 @@ class FakeClient:
             "url": "https://example.invalid/apod.jpg",
         }
 
-    def neo_feed(self, start_date: date, end_date: date | None = None) -> dict[str, object]:
+    def neo_feed(
+        self, start_date: date, end_date: date | None = None
+    ) -> dict[str, object]:
         end = end_date or start_date
         return {
             "element_count": 0,
