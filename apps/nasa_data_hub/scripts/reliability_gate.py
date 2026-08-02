@@ -42,10 +42,7 @@ def executable_paths(venv_dir: Path) -> tuple[Path, Path]:
 def validate_launcher() -> None:
     if os.name == "nt":
         script = APP_DIR / "start.ps1"
-        command = (
-            "[void][scriptblock]::Create((Get-Content "
-            f"'{script}' -Raw))"
-        )
+        command = "[void][scriptblock]::Create((Get-Content " f"'{script}' -Raw))"
         run("pwsh", "-NoProfile", "-Command", command)
     else:
         run("bash", "-n", str(APP_DIR / "start.sh"))
