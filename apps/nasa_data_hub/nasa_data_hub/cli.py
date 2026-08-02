@@ -37,8 +37,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     commands.add_parser("health", help="Show local configuration status")
 
-    doctor = commands.add_parser("doctor", help="Test configuration and a live APOD request")
-    doctor.add_argument("--no-live", action="store_true", help="Skip the live NASA request")
+    doctor = commands.add_parser(
+        "doctor", help="Test configuration and a live APOD request"
+    )
+    doctor.add_argument(
+        "--no-live", action="store_true", help="Skip the live NASA request"
+    )
 
     apod = commands.add_parser("apod", help="Get Astronomy Picture of the Day")
     apod.add_argument("--date", type=_date)
@@ -124,7 +128,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             if not args.no_live:
                 apod = client.apod()
                 payload["live_request"] = "passed"
-                payload["apod_title"] = apod.get("title") if isinstance(apod, dict) else None
+                payload["apod_title"] = (
+                    apod.get("title") if isinstance(apod, dict) else None
+                )
                 payload["rate_limit"] = {
                     "limit": client.rate_limit.limit,
                     "remaining": client.rate_limit.remaining,
