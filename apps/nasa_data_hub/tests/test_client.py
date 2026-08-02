@@ -90,8 +90,9 @@ class ClientTests(unittest.TestCase):
                 )
             return FakeResponse({"title": "Recovered"})
 
-        with patch.object(module, "urlopen", fake_urlopen), patch.object(
-            module.time, "sleep", lambda _: None
+        with (
+            patch.object(module, "urlopen", fake_urlopen),
+            patch.object(module.time, "sleep", lambda _: None),
         ):
             result = NASAClient("secret", max_retries=1).apod()
         self.assertEqual(result["title"], "Recovered")
