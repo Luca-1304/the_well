@@ -4,6 +4,10 @@ This folder is the public-safe, reproducible source for the hosted NASA Data Hub
 
 **Production:** https://nasa-data-hub.vercel.app
 
+**Operations and ordered backlog:** [`PROJECT.md`](./PROJECT.md)
+
+`PROJECT.md` is the single operational source of truth for current state, release rules, risks and next actions. GitHub Issues are disabled in this repository, so remaining work is deliberately kept there instead of being scattered across chats and deployment notes.
+
 The website is intentionally public because it presents public NASA and EONET data. Credentials, deployment permissions, account access, billing and operational controls remain private.
 
 ## Product views
@@ -70,8 +74,18 @@ The production deployment deliberately uses NASA's public `DEMO_KEY` until highe
 
 Node.js 22 is required and matches the production runtime.
 
+For ordinary pre-merge and release work, use the standard quota-free command:
+
 ```bash
-npm run check
+npm run release:check
+```
+
+It runs the complete hosted syntax, unit, security and regression suite, followed by structural production verification and exact static-asset parity without calling quota-bearing NASA routes.
+
+For a release that changes API behaviour, run one bounded full verification after the quota-free command succeeds:
+
+```bash
+npm run release:check:full
 ```
 
 The checks cover:
@@ -100,7 +114,7 @@ Scheduled runs execute every six hours in **structural** mode. They verify the p
 
 A manual workflow run can select **full** mode. Full mode performs one bounded check against APOD, NeoWs, DONKI and EONET, verifies that returned payloads remain credential-free, and confirms that an invalid NeoWs window fails with an uncached HTTP 400 response.
 
-The same checks can be run locally:
+The underlying smoke commands remain available for focused investigation:
 
 ```bash
 npm run smoke:production
@@ -118,6 +132,18 @@ apps/nasa_data_hub/hosted
 ```
 
 No build command is required. `package.json` pins Node.js 22.x so Vercel and CI use the same major runtime.
+
+The target efficient configuration is direct Vercel Git integration:
+
+```text
+Repository: Luca-1304/the_well
+Production branch: master
+Root directory: apps/nasa_data_hub/hosted
+Preview deployments: pull requests
+Production deployments: merged master only
+```
+
+Until that integration is proven, deploy only the exact package from merged `master`, verify the resulting deployment before treating it as released, and preserve the previous READY deployment for rollback.
 
 For higher limits, create a newly rotated NASA key and add it directly through:
 
