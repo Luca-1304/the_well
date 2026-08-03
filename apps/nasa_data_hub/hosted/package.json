@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "node --check api/nasa.js && node --check app.js && node --test --test-concurrency=1 tests/*.test.mjs"
+    "check": "node --check api/nasa.js && node --check app.js && node --check features/common.js && node --check features/apod.js && node --check features/neo.js && node --check features/donki.js && node --check features/eonet.js && node --test --test-concurrency=1 tests/*.test.mjs"
   },
   "engines": {
     "node": ">=20"
