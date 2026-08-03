@@ -40,6 +40,18 @@ export function formatLocalInputDate(value = new Date()) {
   return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+export function shiftIsoDate(value, days) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value)) || !Number.isInteger(days)) {
+    throw new TypeError("A valid ISO date and integer day shift are required");
+  }
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new TypeError("A valid ISO date is required");
+  }
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
 export function parseResponseText(text, label = "Service") {
   try {
     return JSON.parse(String(text));
