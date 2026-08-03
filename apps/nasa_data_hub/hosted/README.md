@@ -74,19 +74,25 @@ The production deployment deliberately uses NASA's public `DEMO_KEY` until highe
 
 Node.js 22 is required and matches the production runtime.
 
-For ordinary pre-merge and release work, use the standard quota-free command:
+Before opening or merging a pull request, validate the proposed source:
+
+```bash
+npm run check
+```
+
+After the merged source has been deployed, prove that production matches it without consuming NASA route quota:
 
 ```bash
 npm run release:check
 ```
 
-It runs the complete hosted syntax, unit, security and regression suite, followed by structural production verification and exact static-asset parity without calling quota-bearing NASA routes.
-
-For a release that changes API behaviour, run one bounded full verification after the quota-free command succeeds:
+For a release that changes API behaviour, run one bounded full verification after the quota-free post-deployment check succeeds:
 
 ```bash
 npm run release:check:full
 ```
+
+Production parity is intentionally a post-deployment gate. A pull request that changes static assets should not match the previous production release before it has been merged and deployed.
 
 The checks cover:
 
