@@ -17,8 +17,29 @@ const DONKI_ENDPOINTS = new Map(
   ].map((name) => [name.toLowerCase(), name]),
 );
 
+export const COURTESY_LIMITS = Object.freeze({
+  nasa: Object.freeze({ limit: 8, windowMs: 10 * 60 * 1000 }),
+  eonet: Object.freeze({ limit: 30, windowMs: 10 * 60 * 1000 }),
+});
+
 const wait = (milliseconds) =>
   new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+function runtimeState() {
+  if (!globalThis.__NASA_DATA_HUB_RUNTIME__) {
+    globalThis.__NASA_DATA_HUB_RUNTIME__ = {
+      inflight: new Map(),
+      limits: new Map(),
+    };
+  }
+  return globalThis.__NASA_DATA_HUB_RUNTIME__;
+}
+
+export function resetRuntimeStateForTests() {
+  const state = runtimeState();
+  state.inflight.clear();
+  state.limits.clear();
+}
 
 export function single(value) {
   return Array.isArray(value) ? value[0] : value;
@@ -34,6 +55,51 @@ function dateDistance(start, end) {
     (Date.parse(`${end}T00:00:00Z`) - Date.parse(`${start}T00:00:00Z`)) /
     86_400_000
   );
+}
+
+function headerValue(request, name) {
+  const headers = request?.headers;
+  if (!headers) return null;
+  if (typeof headers.get === "function") return headers.get(name);
+  const match = Object.entries(headers).find(
+    ([key]) => key.toLowerCase() === name.toLowerCase(),
+  );
+  return match ? single(match[1]) : null;
+}
+
+function clientIdentifier(request) {
+  const forwarded = String(headerValue(request, "x-forwarded-for") || "")
+    .split(",")[0]
+    .trim();
+  return forwarded || String(headerValue(request, "x-real-ip") || "anonymous");
+}
+
+export function checkCourtesyLimit(request, mode, now = Date.now()) {
+  if (mode === "health") {
+    return { allowed: true, remaining: null, retryAfter: 0, limit: null };
+  }
+
+  const family = mode === "eonet" ? "eonet" : "nasa";
+  const policy = COURTESY_LIMITS[family];
+  const key = `${family}:${clientIdentifier(request)}`;
+  const state = runtimeState();
+  const existing = state.limits.get(key);
+  const bucket =
+    !existing || now - existing.startedAt >= policy.windowMs
+      ? { startedAt: now, count: 0 }
+      : existing;
+
+  bucket.count += 1;
+  state.limits.set(key, bucket);
+  const allowed = bucket.count <= policy.limit;
+  return {
+    allowed,
+    limit: policy.limit,
+    remaining: Math.max(0, policy.limit - bucket.count),
+    retryAfter: allowed
+      ? 0
+      : Math.max(1, Math.ceil((bucket.startedAt + policy.windowMs - now) / 1000)),
+  };
 }
 
 export function scrubApiKeys(value) {
@@ -61,7 +127,27 @@ export function scrubApiKeys(value) {
   }
 }
 
-async function fetchJson(url, { authenticated = false } = {}) {
+function upstreamDedupeKey(url) {
+  const safe = new URL(url);
+  for (const key of [...safe.searchParams.keys()]) {
+    if (key.toLowerCase() === "api_key") safe.searchParams.delete(key);
+  }
+  safe.searchParams.sort();
+  return safe.href;
+}
+
+export function deduplicatedFetch(key, operation) {
+  const state = runtimeState();
+  if (state.inflight.has(key)) return state.inflight.get(key);
+
+  const promise = Promise.resolve()
+    .then(operation)
+    .finally(() => state.inflight.delete(key));
+  state.inflight.set(key, promise);
+  return promise;
+}
+
+export async function fetchJson(url, { authenticated = false } = {}) {
   const requestUrl = new URL(url);
   if (authenticated) {
     requestUrl.searchParams.set(
@@ -70,74 +156,76 @@ async function fetchJson(url, { authenticated = false } = {}) {
     );
   }
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 15_000);
+  return deduplicatedFetch(upstreamDedupeKey(requestUrl), async () => {
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15_000);
 
-    try {
-      const response = await fetch(requestUrl, {
-        headers: {
-          Accept: "application/json",
-          "User-Agent": "luca-nasa-data-hub/1.0",
-        },
-        signal: controller.signal,
-      });
-      const text = await response.text();
-
-      let payload;
       try {
-        payload = scrubApiKeys(text ? JSON.parse(text) : null);
-      } catch {
-        throw Object.assign(new Error("NASA service returned invalid JSON"), {
-          status: 502,
+        const response = await fetch(requestUrl, {
+          headers: {
+            Accept: "application/json",
+            "User-Agent": "luca-nasa-data-hub/1.1",
+          },
+          signal: controller.signal,
         });
-      }
+        const text = await response.text();
 
-      if (!response.ok) {
-        if (RETRYABLE_STATUS.has(response.status) && attempt < 2) {
+        let payload;
+        try {
+          payload = scrubApiKeys(text ? JSON.parse(text) : null);
+        } catch {
+          throw Object.assign(new Error("NASA service returned invalid JSON"), {
+            status: 502,
+          });
+        }
+
+        if (!response.ok) {
+          if (RETRYABLE_STATUS.has(response.status) && attempt < 2) {
+            await wait(350 * 2 ** attempt);
+            continue;
+          }
+
+          const message =
+            payload?.error?.message ??
+            payload?.error ??
+            payload?.msg ??
+            payload?.message ??
+            `NASA service returned HTTP ${response.status}`;
+          throw Object.assign(new Error(String(message)), {
+            status: response.status,
+          });
+        }
+
+        return {
+          data: payload,
+          rate_limit: {
+            limit: response.headers.get("x-ratelimit-limit"),
+            remaining: response.headers.get("x-ratelimit-remaining"),
+          },
+        };
+      } catch (error) {
+        const networkFailure =
+          error?.name === "AbortError" || error instanceof TypeError;
+        if (networkFailure && attempt < 2) {
           await wait(350 * 2 ** attempt);
           continue;
         }
-
-        const message =
-          payload?.error?.message ??
-          payload?.error ??
-          payload?.msg ??
-          payload?.message ??
-          `NASA service returned HTTP ${response.status}`;
-        throw Object.assign(new Error(String(message)), {
-          status: response.status,
-        });
+        if (networkFailure) {
+          throw Object.assign(
+            new Error("Could not reach the NASA service. Try again shortly."),
+            { status: 502 },
+          );
+        }
+        throw error;
+      } finally {
+        clearTimeout(timeout);
       }
-
-      return {
-        data: payload,
-        rate_limit: {
-          limit: response.headers.get("x-ratelimit-limit"),
-          remaining: response.headers.get("x-ratelimit-remaining"),
-        },
-      };
-    } catch (error) {
-      const networkFailure =
-        error?.name === "AbortError" || error instanceof TypeError;
-      if (networkFailure && attempt < 2) {
-        await wait(350 * 2 ** attempt);
-        continue;
-      }
-      if (networkFailure) {
-        throw Object.assign(
-          new Error("Could not reach the NASA service. Try again shortly."),
-          { status: 502 },
-        );
-      }
-      throw error;
-    } finally {
-      clearTimeout(timeout);
     }
-  }
 
-  throw Object.assign(new Error("NASA request failed after retries"), {
-    status: 502,
+    throw Object.assign(new Error("NASA request failed after retries"), {
+      status: 502,
+    });
   });
 }
 
@@ -154,10 +242,14 @@ export function buildEonetUrl(query = {}) {
       status: 400,
     });
   }
-  if (days !== null && (!Number.isInteger(days) || days < 1)) {
-    throw Object.assign(new Error("EONET days must be a positive integer"), {
-      status: 400,
-    });
+  if (
+    days !== null &&
+    (!Number.isInteger(days) || days < 1 || days > 3650)
+  ) {
+    throw Object.assign(
+      new Error("EONET days must be between 1 and 3650"),
+      { status: 400 },
+    );
   }
 
   const url = new URL(`${EONET_BASE_URL}/events`);
@@ -181,7 +273,7 @@ export function buildEonetUrl(query = {}) {
   return url;
 }
 
-function sendJson(response, status, payload, { cache = false } = {}) {
+function sendJson(response, status, payload, { cache = false, headers = {} } = {}) {
   response.setHeader(
     "Cache-Control",
     cache
@@ -190,6 +282,9 @@ function sendJson(response, status, payload, { cache = false } = {}) {
   );
   response.setHeader("Content-Type", "application/json; charset=utf-8");
   response.setHeader("X-Robots-Tag", "noindex");
+  for (const [name, value] of Object.entries(headers)) {
+    response.setHeader(name, String(value));
+  }
   return response.status(status).json(payload);
 }
 
@@ -208,9 +303,37 @@ export default async function handler(request, response) {
       return sendJson(response, 200, {
         ok: true,
         service: "NASA Data Hub",
+        version: "1.1",
         key_mode: usingDemoKey ? "demo" : "personal",
         using_demo_key: usingDemoKey,
+        privacy: "no account or tracking profile",
       });
+    }
+
+    if (!["apod", "neo", "donki", "eonet"].includes(mode)) {
+      return sendJson(response, 404, { ok: false, error: "Unknown API route" });
+    }
+
+    const courtesy = checkCourtesyLimit(request, mode);
+    const courtesyHeaders = {
+      "X-Courtesy-Limit": courtesy.limit,
+      "X-Courtesy-Remaining": courtesy.remaining,
+    };
+    if (!courtesy.allowed) {
+      return sendJson(
+        response,
+        429,
+        {
+          ok: false,
+          error: "This browser has reached the temporary public-data courtesy limit.",
+        },
+        {
+          headers: {
+            ...courtesyHeaders,
+            "Retry-After": courtesy.retryAfter,
+          },
+        },
+      );
     }
 
     let result;
@@ -262,7 +385,8 @@ export default async function handler(request, response) {
       if (
         (start && !isIsoDate(start)) ||
         (end && !isIsoDate(end)) ||
-        (start && end && dateDistance(start, end) < 0)
+        (start && end && dateDistance(start, end) < 0) ||
+        (start && end && dateDistance(start, end) > 365)
       ) {
         throw Object.assign(new Error("Invalid DONKI date range"), {
           status: 400,
@@ -272,10 +396,8 @@ export default async function handler(request, response) {
       if (start) url.searchParams.set("startDate", start);
       if (end) url.searchParams.set("endDate", end);
       result = await fetchJson(url, { authenticated: true });
-    } else if (mode === "eonet") {
-      result = await fetchJson(buildEonetUrl(query));
     } else {
-      return sendJson(response, 404, { ok: false, error: "Unknown API route" });
+      result = await fetchJson(buildEonetUrl(query));
     }
 
     return sendJson(response, 200, { ok: true, ...result }, { cache: true });
