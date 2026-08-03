@@ -116,8 +116,9 @@ export function formatNumber(value, maximumFractionDigits = 1) {
 }
 
 export function formatDateTime(value) {
+  if (value === null || value === undefined || value === "") return "Time not supplied";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value || "—";
+  if (Number.isNaN(date.getTime())) return String(value);
   return new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
