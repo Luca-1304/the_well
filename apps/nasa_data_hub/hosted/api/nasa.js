@@ -1,3 +1,4 @@
+const APP_VERSION = "1.2";
 const NASA_BASE_URL = "https://api.nasa.gov";
 const EONET_BASE_URL = "https://eonet.gsfc.nasa.gov/api/v3";
 const RETRYABLE_STATUS = new Set([429, 500, 502, 503, 504]);
@@ -165,7 +166,7 @@ export async function fetchJson(url, { authenticated = false } = {}) {
         const response = await fetch(requestUrl, {
           headers: {
             Accept: "application/json",
-            "User-Agent": "luca-nasa-data-hub/1.1",
+            "User-Agent": `luca-nasa-data-hub/${APP_VERSION}`,
           },
           signal: controller.signal,
         });
@@ -281,6 +282,7 @@ function sendJson(response, status, payload, { cache = false, headers = {} } = {
       : "no-store",
   );
   response.setHeader("Content-Type", "application/json; charset=utf-8");
+  response.setHeader("X-App-Version", APP_VERSION);
   response.setHeader("X-Robots-Tag", "noindex");
   for (const [name, value] of Object.entries(headers)) {
     response.setHeader(name, String(value));
@@ -303,7 +305,8 @@ export default async function handler(request, response) {
       return sendJson(response, 200, {
         ok: true,
         service: "NASA Data Hub",
-        version: "1.1",
+        version: APP_VERSION,
+        runtime: `node-${process.versions.node.split(".")[0]}`,
         key_mode: usingDemoKey ? "demo" : "personal",
         using_demo_key: usingDemoKey,
         privacy: "no account or tracking profile",
