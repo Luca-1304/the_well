@@ -74,12 +74,8 @@ class ClientTests(unittest.TestCase):
 
     def test_response_links_and_cache_never_expose_key(self):
         payload = {
-            "links": {
-                "self": "https://api.nasa.gov/neo?api_key=top-secret&x=1"
-            },
-            "nested": [
-                "https://api.nasa.gov/neo?x=1&API_KEY=top-secret#fragment"
-            ],
+            "links": {"self": "https://api.nasa.gov/neo?api_key=top-secret&x=1"},
+            "nested": ["https://api.nasa.gov/neo?x=1&API_KEY=top-secret#fragment"],
         }
         with tempfile.TemporaryDirectory() as folder:
             with patch.object(
@@ -87,9 +83,9 @@ class ClientTests(unittest.TestCase):
                 "urlopen",
                 lambda request, timeout: FakeResponse(payload),
             ):
-                result = NASAClient(
-                    "top-secret", cache_dir=folder
-                ).neo_feed(date(2026, 8, 2))
+                result = NASAClient("top-secret", cache_dir=folder).neo_feed(
+                    date(2026, 8, 2)
+                )
 
             serialised = json.dumps(result)
             self.assertNotIn("top-secret", serialised)
