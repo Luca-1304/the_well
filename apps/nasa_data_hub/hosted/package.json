@@ -6,7 +6,9 @@
   "scripts": {
     "check": "node --check api/nasa.js && node --check app.js && node --check features/common.js && node --check features/apod.js && node --check features/neo.js && node --check features/donki.js && node --check features/eonet.js && node --check scripts/production-smoke.mjs && node --test --test-concurrency=1 tests/*.test.mjs",
     "smoke:production": "node scripts/production-smoke.mjs --mode structural",
-    "smoke:production:full": "node scripts/production-smoke.mjs --mode full"
+    "smoke:production:full": "node scripts/production-smoke.mjs --mode full",
+    "release:check": "npm run check && npm run smoke:production",
+    "release:check:full": "npm run check && npm run smoke:production:full"
   },
   "engines": {
     "node": "22.x"
