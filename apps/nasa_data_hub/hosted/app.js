@@ -5,6 +5,7 @@ import {
   formatLocalInputDate,
   parseResponseText,
   readShareState,
+  shiftIsoDate,
 } from "./features/common.js";
 import { initNeo } from "./features/neo.js";
 
@@ -14,13 +15,41 @@ stabilityStyles.href = "/stability.css";
 document.head.append(stabilityStyles);
 
 const today = formatLocalInputDate();
-for (const id of ["apod-date", "neo-start", "neo-end", "donki-start", "donki-end"]) {
-  const input = document.getElementById(id);
-  if (input) {
-    input.value = today;
-    input.max = today;
+const apodInput = document.getElementById("apod-date");
+const neoStartInput = document.getElementById("neo-start");
+const neoEndInput = document.getElementById("neo-end");
+const donkiStartInput = document.getElementById("donki-start");
+const donkiEndInput = document.getElementById("donki-end");
+
+for (const input of [
+  apodInput,
+  neoStartInput,
+  neoEndInput,
+  donkiStartInput,
+  donkiEndInput,
+]) {
+  if (input) input.value = today;
+}
+
+if (apodInput) apodInput.max = today;
+if (donkiStartInput) donkiStartInput.max = today;
+if (donkiEndInput) donkiEndInput.max = today;
+
+function syncNeoWindow() {
+  if (!neoStartInput?.value || !neoEndInput) return;
+  neoEndInput.min = neoStartInput.value;
+  neoEndInput.max = shiftIsoDate(neoStartInput.value, 7);
+  if (
+    !neoEndInput.value ||
+    neoEndInput.value < neoEndInput.min ||
+    neoEndInput.value > neoEndInput.max
+  ) {
+    neoEndInput.value = neoStartInput.value;
   }
 }
+
+neoStartInput?.addEventListener("change", syncNeoWindow);
+syncNeoWindow();
 
 const statusText = document.getElementById("service-status");
 const refreshText = document.getElementById("last-refresh");
@@ -60,6 +89,7 @@ initApod(context);
 initNeo(context);
 initDonki(context);
 initEonet(context);
+syncNeoWindow();
 loadHealth();
 
 if (sharedState) {
