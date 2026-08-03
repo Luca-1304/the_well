@@ -65,25 +65,30 @@ Use this path for every meaningful change:
 1. Create a focused branch from current `master`.
 2. State the behavioural contract before implementation when the change is non-trivial.
 3. Make the smallest complete change.
-4. Run `npm run release:check`.
+4. Run `npm run check` against the proposed source.
 5. Open a pull request containing the purpose, risk and evidence.
 6. Require the hosted Node gate, NASA package checks and repository tests to pass.
 7. Merge only the verified head SHA.
 8. Deploy from merged `master`, never from an unmerged local variant.
-9. Verify production version, runtime, security headers and source parity.
-10. Run the bounded full smoke for releases that change API behaviour.
+9. Run `npm run release:check` against the deployed release to prove production parity.
+10. Run `npm run release:check:full` when the release changes API behaviour or when investigating a live failure.
 11. Record the production deployment ID and any known verification boundary.
 12. Preserve the previous READY deployment for rollback.
+
+Production parity belongs after deployment. A pull request that intentionally changes static assets should not be expected to match the previous production release before it is merged and deployed.
 
 ## Standard commands
 
 From `apps/nasa_data_hub/hosted`:
 
 ```bash
-# Syntax, unit, security and regression checks plus quota-free production parity.
+# Proposed-source syntax, unit, security and regression checks.
+npm run check
+
+# Post-deployment source checks plus quota-free production parity.
 npm run release:check
 
-# The same checks followed by one bounded live check of all data families.
+# The same post-deployment checks followed by one bounded live check of all data families.
 npm run release:check:full
 ```
 
