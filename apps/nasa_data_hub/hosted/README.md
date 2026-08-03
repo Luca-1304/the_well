@@ -78,6 +78,24 @@ The checks cover:
 - Frontend credential isolation and absence of unsafe HTML sinks
 - Secure share-state allow-listing
 - Visible attribution, privacy and independence statements
+- Production smoke assertion behaviour
+
+## Production monitoring
+
+The repository includes a dedicated `NASA Data Hub Production Smoke` workflow.
+
+Scheduled runs execute every six hours in **structural** mode. They verify the public alias, health contract, deployed JavaScript and CSS assets, and hardened security headers without calling quota-bearing NASA data routes.
+
+A manual workflow run can select **full** mode. Full mode performs one bounded check against APOD, NeoWs, DONKI and EONET, verifies that returned payloads remain credential-free, and confirms that an invalid NeoWs window fails with an uncached HTTP 400 response.
+
+The same checks can be run locally:
+
+```bash
+npm run smoke:production
+npm run smoke:production:full
+```
+
+Full mode intentionally consumes a small amount of the public NASA quota and should be used for release verification or investigation, not frequent polling.
 
 ## Deploy to Vercel
 
