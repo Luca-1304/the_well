@@ -7,6 +7,9 @@ import {
   assertStructuralPage,
 } from "../scripts/production-smoke.mjs";
 
+const validHtml =
+  "<title>NASA Data Hub</title><h1>Space and Earth data, made understandable.</h1><a>Review source</a>";
+
 const secureHeaders = new Headers({
   "content-security-policy": "default-src 'self'; script-src 'self'; style-src 'self'; frame-ancestors 'none'",
   "permissions-policy": "camera=(), microphone=(), geolocation=()",
@@ -16,41 +19,33 @@ const secureHeaders = new Headers({
   "x-frame-options": "DENY",
 });
 
+const validHealth = {
+  ok: true,
+  service: "NASA Data Hub",
+  version: "1.1",
+  key_mode: "demo",
+  using_demo_key: true,
+  privacy: "no account or tracking profile",
+};
+
 test("structural smoke accepts the deployed v1.1 page and hardened headers", () => {
-  assert.doesNotThrow(() =>
-    assertStructuralPage(
-      "<title>NASA Data Hub</title><h1>Space and Earth data, made understandable.</h1><a>Review source</a>",
-      secureHeaders,
-    ),
-  );
+  assert.doesNotThrow(() => assertStructuralPage(validHtml, secureHeaders));
 });
 
 test("structural smoke rejects weakened inline CSP", () => {
   const headers = new Headers(secureHeaders);
   headers.set(
     "content-security-policy",
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'",
+    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; frame-ancestors 'none'",
   );
-  assert.throws(
-    () => assertStructuralPage("NASA Data Hub Space and Earth data, made understandable. Review source", headers),
-    /unsafe-inline/i,
-  );
+  assert.throws(() => assertStructuralPage(validHtml, headers), /unsafe-inline/i);
 });
 
 test("health smoke requires version 1.1 and no credential disclosure", () => {
-  assert.doesNotThrow(() =>
-    assertHealthPayload({
-      ok: true,
-      service: "NASA Data Hub",
-      version: "1.1",
-      key_mode: "demo",
-      using_demo_key: true,
-      privacy: "no account or tracking profile",
-    }),
-  );
+  assert.doesNotThrow(() => assertHealthPayload(validHealth));
 
   assert.throws(
-    () => assertHealthPayload({ ok: true, version: "1.0" }),
+    () => assertHealthPayload({ ...validHealth, version: "1.0" }),
     /version 1\.1/i,
   );
 });
