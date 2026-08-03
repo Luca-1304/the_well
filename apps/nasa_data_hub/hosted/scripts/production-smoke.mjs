@@ -2,6 +2,8 @@ import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 const DEFAULT_BASE_URL = "https://nasa-data-hub.vercel.app";
+const EXPECTED_APP_VERSION = "1.2";
+const EXPECTED_RUNTIME = "node-22";
 const REQUEST_TIMEOUT_MS = 15_000;
 const CREDENTIAL_PATTERN = /(?:api[_-]?key|authorization|bearer\s+[a-z0-9._-]+|(?:access[_-]?)?token=|secret=)/i;
 
@@ -101,7 +103,14 @@ export function assertStructuralPage(html, headers) {
 export function assertHealthPayload(payload) {
   requireCondition(payload?.ok === true, "Health endpoint is not ok");
   requireCondition(payload?.service === "NASA Data Hub", "Unexpected health service name");
-  requireCondition(payload?.version === "1.1", "Health endpoint API contract is not version 1.1");
+  requireCondition(
+    payload?.version === EXPECTED_APP_VERSION,
+    `Health endpoint is not version ${EXPECTED_APP_VERSION}`,
+  );
+  requireCondition(
+    payload?.runtime === EXPECTED_RUNTIME,
+    "Health endpoint is not running on Node 22",
+  );
   requireCondition(
     typeof payload?.using_demo_key === "boolean",
     "Health endpoint does not expose a boolean key mode",
@@ -169,6 +178,10 @@ export async function runStructuralSmoke(base = DEFAULT_BASE_URL) {
   requireCondition(
     header(health.response.headers, "cache-control").includes("no-store"),
     "Health response is cacheable",
+  );
+  requireCondition(
+    header(health.response.headers, "x-app-version") === EXPECTED_APP_VERSION,
+    "Health response X-App-Version header is incorrect",
   );
   assertHealthPayload(parseJson(health.text, "Health endpoint"));
 
