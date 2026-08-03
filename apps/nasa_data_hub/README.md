@@ -2,9 +2,14 @@
 
 A standalone, understandable NASA integration that does **not** depend on the rest of `the_well`.
 
+**Public hosted dashboard:** https://nasa-data-hub.vercel.app
+
+The product is intentionally public because it displays public NASA and EONET data. Credentials, account access and deployment controls remain private. Reproducible hosted source and its security contract are in [`hosted/`](hosted/).
+
 It provides:
 
 - A local browser dashboard
+- A public hosted dashboard
 - A safe server-side proxy, so the API key is never exposed to browser JavaScript
 - Astronomy Picture of the Day
 - Near-Earth-object approaches and asteroid lookup
@@ -79,11 +84,12 @@ python -m nasa_data_hub eonet --status open --days 14 --category wildfires
 ```text
 apps/nasa_data_hub/
 ├── nasa_data_hub/       Python package, server, CLI, client and configuration
-│   └── static/          Browser dashboard assets
-├── tests/               Offline unit tests
-├── .env.example         Safe configuration template
+│   └── static/          Local browser dashboard assets
+├── hosted/              Public-safe Vercel source, tests and deployment contract
+├── tests/               Offline Python unit tests
+├── .env.example         Safe local configuration template
 ├── start.ps1            Windows launcher
-├── start.sh              macOS/Linux launcher
+├── start.sh             macOS/Linux launcher
 └── README.md            This guide
 ```
 
@@ -91,11 +97,14 @@ apps/nasa_data_hub/
 
 - Never commit `.env`.
 - Never place the real key in HTML or frontend JavaScript.
-- The dashboard talks only to the local Python server.
-- The server adds the API key only to `api.nasa.gov` requests.
+- The local dashboard talks only to the local Python server.
+- The hosted dashboard talks only to its same-origin serverless API.
+- Servers add the API key only to `api.nasa.gov` requests.
 - EONET requests never receive the key.
+- NASA credentials echoed inside nested response links are removed before responses are cached or returned.
 - Cache filenames are derived from URLs with the secret removed.
 - Error output does not include request URLs or API keys.
+- The public hosted edition uses strict routing, input validation and browser security headers.
 
 ## Tests
 
@@ -105,7 +114,14 @@ From this folder:
 python -m unittest discover -s tests -v
 ```
 
-The repository workflow runs these tests on Python 3.10, 3.11, 3.12, and 3.13 without installing the large root project.
+For the hosted edition:
+
+```bash
+cd hosted
+npm run check
+```
+
+The repository workflows run the Python tests across supported versions and independently enforce the hosted public/private boundary.
 
 ## Reliability gates
 
@@ -120,4 +136,6 @@ Do not paste the key into a workflow input, issue, pull request or source file. 
 
 ## Deployment note
 
-For a hosted deployment, configure `NASA_API_KEY` using the hosting provider's encrypted secret/environment settings. Do not commit a production `.env` file.
+The current production site is public and runs safely with NASA's `DEMO_KEY`. For higher limits, configure a newly rotated `NASA_API_KEY` using Vercel's encrypted Environment Variables settings. Do not commit a production `.env` file.
+
+See [`hosted/README.md`](hosted/README.md) for the exact project root, checks, security controls and deployment procedure.
