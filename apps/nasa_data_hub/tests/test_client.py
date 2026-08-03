@@ -72,6 +72,42 @@ class ClientTests(unittest.TestCase):
             self.assertEqual(len(names), 1)
             self.assertNotIn("top-secret", names[0])
 
+    def test_response_links_and_cache_never_expose_key(self):
+        payload = {
+            "links": {
+                "self": "https://api.nasa.gov/neo?api_key=top-secret&x=1"
+            },
+            "nested": [
+                "https://api.nasa.gov/neo?x=1&API_KEY=top-secret#fragment"
+            ],
+        }
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(
+                module,
+                "urlopen",
+                lambda request, timeout: FakeResponse(payload),
+            ):
+                result = NASAClient(
+                    "top-secret", cache_dir=folder
+                ).neo_feed(date(2026, 8, 2))
+
+            serialised = json.dumps(result)
+            self.assertNotIn("top-secret", serialised)
+            self.assertNotIn("api_key", serialised.lower())
+            self.assertEqual(
+                result["links"]["self"],
+                "https://api.nasa.gov/neo?x=1",
+            )
+            self.assertEqual(
+                result["nested"][0],
+                "https://api.nasa.gov/neo?x=1#fragment",
+            )
+            cache_files = list(Path(folder).glob("*.json"))
+            self.assertEqual(len(cache_files), 1)
+            cache_text = cache_files[0].read_text(encoding="utf-8")
+            self.assertNotIn("top-secret", cache_text)
+            self.assertNotIn("api_key", cache_text.lower())
+
     def test_retries_429(self):
         calls = 0
         headers = Message()
