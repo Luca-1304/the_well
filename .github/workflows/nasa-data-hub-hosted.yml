@@ -1,0 +1,38 @@
+name: NASA Data Hub Hosted
+
+on:
+  pull_request:
+    paths:
+      - "apps/nasa_data_hub/hosted/**"
+      - ".github/workflows/nasa-data-hub-hosted.yml"
+  push:
+    branches:
+      - master
+    paths:
+      - "apps/nasa_data_hub/hosted/**"
+      - ".github/workflows/nasa-data-hub-hosted.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  public-safe-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Validate Vercel configuration JSON
+        working-directory: apps/nasa_data_hub/hosted
+        run: node -e "JSON.parse(require('node:fs').readFileSync('vercel.json', 'utf8'))"
+      - name: Run syntax and security regression checks
+        working-directory: apps/nasa_data_hub/hosted
+        run: npm run check
+      - name: Reject committed environment files
+        shell: bash
+        run: |
+          if git ls-files 'apps/nasa_data_hub/hosted/.env*' | grep -v '/.env.example$'; then
+            echo 'A real environment file is tracked.' >&2
+            exit 1
+          fi
