@@ -22,13 +22,14 @@ const secureHeaders = new Headers({
 const validHealth = {
   ok: true,
   service: "NASA Data Hub",
-  version: "1.1",
+  version: "1.2",
+  runtime: "node-22",
   key_mode: "demo",
   using_demo_key: true,
   privacy: "no account or tracking profile",
 };
 
-test("structural smoke accepts the deployed v1.1 page and hardened headers", () => {
+test("structural smoke accepts the deployed v1.2 page and hardened headers", () => {
   assert.doesNotThrow(() => assertStructuralPage(validHtml, secureHeaders));
 });
 
@@ -41,12 +42,16 @@ test("structural smoke rejects weakened inline CSP", () => {
   assert.throws(() => assertStructuralPage(validHtml, headers), /unsafe-inline/i);
 });
 
-test("health smoke requires version 1.1 and no credential disclosure", () => {
+test("health smoke requires v1.2 on Node 22 with no credential disclosure", () => {
   assert.doesNotThrow(() => assertHealthPayload(validHealth));
 
   assert.throws(
-    () => assertHealthPayload({ ...validHealth, version: "1.0" }),
-    /version 1\.1/i,
+    () => assertHealthPayload({ ...validHealth, version: "1.1" }),
+    /version 1\.2/i,
+  );
+  assert.throws(
+    () => assertHealthPayload({ ...validHealth, runtime: "node-24" }),
+    /Node 22/i,
   );
 });
 

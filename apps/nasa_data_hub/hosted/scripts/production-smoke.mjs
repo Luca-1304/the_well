@@ -1,8 +1,43 @@
+import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
 const DEFAULT_BASE_URL = "https://nasa-data-hub.vercel.app";
+const EXPECTED_APP_VERSION = "1.2";
+const EXPECTED_RUNTIME = "node-22";
 const REQUEST_TIMEOUT_MS = 15_000;
 const CREDENTIAL_PATTERN = /(?:api[_-]?key|authorization|bearer\s+[a-z0-9._-]+|(?:access[_-]?)?token=|secret=)/i;
+
+const STATIC_ASSETS = [
+  ["/app.js", new URL("../app.js", import.meta.url), "application/javascript"],
+  ["/styles.css", new URL("../styles.css", import.meta.url), "text/css"],
+  ["/stability.css", new URL("../stability.css", import.meta.url), "text/css"],
+  ["/favicon.svg", new URL("../favicon.svg", import.meta.url), "image/svg+xml"],
+  [
+    "/features/common.js",
+    new URL("../features/common.js", import.meta.url),
+    "application/javascript",
+  ],
+  [
+    "/features/apod.js",
+    new URL("../features/apod.js", import.meta.url),
+    "application/javascript",
+  ],
+  [
+    "/features/neo.js",
+    new URL("../features/neo.js", import.meta.url),
+    "application/javascript",
+  ],
+  [
+    "/features/donki.js",
+    new URL("../features/donki.js", import.meta.url),
+    "application/javascript",
+  ],
+  [
+    "/features/eonet.js",
+    new URL("../features/eonet.js", import.meta.url),
+    "application/javascript",
+  ],
+];
 
 function requireCondition(condition, message) {
   if (!condition) throw new Error(message);
@@ -22,6 +57,17 @@ function header(headers, name) {
   return String(headers.get(name) || "").trim();
 }
 
+function normaliseAssetText(value) {
+  return String(value).replaceAll("\r\n", "\n").trimEnd();
+}
+
+export function assertAssetParity(label, deployed, expected) {
+  requireCondition(
+    normaliseAssetText(deployed) === normaliseAssetText(expected),
+    `${label} does not match GitHub source`,
+  );
+}
+
 export function assertCredentialFree(value) {
   const serialised = JSON.stringify(value);
   requireCondition(
@@ -34,7 +80,7 @@ export function assertStructuralPage(html, headers) {
   requireCondition(html.includes("<title>NASA Data Hub</title>"), "Production title is missing");
   requireCondition(
     html.includes("Space and Earth data, made understandable."),
-    "Production v1.1 hero copy is missing",
+    "Production hero copy is missing",
   );
   requireCondition(html.includes("Review source"), "Public source link is missing");
 
@@ -57,7 +103,14 @@ export function assertStructuralPage(html, headers) {
 export function assertHealthPayload(payload) {
   requireCondition(payload?.ok === true, "Health endpoint is not ok");
   requireCondition(payload?.service === "NASA Data Hub", "Unexpected health service name");
-  requireCondition(payload?.version === "1.1", "Health endpoint is not version 1.1");
+  requireCondition(
+    payload?.version === EXPECTED_APP_VERSION,
+    `Health endpoint is not version ${EXPECTED_APP_VERSION}`,
+  );
+  requireCondition(
+    payload?.runtime === EXPECTED_RUNTIME,
+    "Health endpoint is not running on Node 22",
+  );
   requireCondition(
     typeof payload?.using_demo_key === "boolean",
     "Health endpoint does not expose a boolean key mode",
@@ -100,30 +153,40 @@ function parseJson(text, label) {
   }
 }
 
+async function verifyStaticAsset(baseUrl, path, localUrl, contentType) {
+  const asset = await request(baseUrl, path);
+  requireCondition(asset.text.length > 20, `${path} is unexpectedly small`);
+  requireCondition(
+    header(asset.response.headers, "content-type").includes(contentType),
+    `${path} has an unexpected content type`,
+  );
+  const expected = await readFile(localUrl, "utf8");
+  assertAssetParity(path, asset.text, expected);
+}
+
 export async function runStructuralSmoke(base = DEFAULT_BASE_URL) {
   const baseUrl = normaliseBaseUrl(base);
   const root = await request(baseUrl, "/");
   assertStructuralPage(root.text, root.response.headers);
+  assertAssetParity(
+    "index.html",
+    root.text,
+    await readFile(new URL("../index.html", import.meta.url), "utf8"),
+  );
 
   const health = await request(baseUrl, "/api/health");
   requireCondition(
     header(health.response.headers, "cache-control").includes("no-store"),
     "Health response is cacheable",
   );
+  requireCondition(
+    header(health.response.headers, "x-app-version") === EXPECTED_APP_VERSION,
+    "Health response X-App-Version header is incorrect",
+  );
   assertHealthPayload(parseJson(health.text, "Health endpoint"));
 
-  const assets = [
-    ["/app.js", "application/javascript"],
-    ["/styles.css", "text/css"],
-    ["/features/common.js", "application/javascript"],
-  ];
-  for (const [path, contentType] of assets) {
-    const asset = await request(baseUrl, path);
-    requireCondition(asset.text.length > 200, `${path} is unexpectedly small`);
-    requireCondition(
-      header(asset.response.headers, "content-type").includes(contentType),
-      `${path} has an unexpected content type`,
-    );
+  for (const [path, localUrl, contentType] of STATIC_ASSETS) {
+    await verifyStaticAsset(baseUrl, path, localUrl, contentType);
   }
 
   return { mode: "structural", baseUrl: baseUrl.href };

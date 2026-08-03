@@ -1,0 +1,17 @@
+.media-frame {
+  display: grid;
+  place-items: center;
+}
+
+.media-frame img {
+  object-fit: contain;
+  background: #060b16;
+}
+
+.result-region[aria-busy="true"] {
+  cursor: progress;
+}
+
+.result-region[aria-busy="true"] .loading-row {
+  min-height: 92px;
+}

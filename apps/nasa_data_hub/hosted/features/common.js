@@ -7,6 +7,59 @@ const SHARE_ALLOWLIST = {
 
 const CREDENTIAL_PATTERN = /(api[_-]?key|authorization|bearer\s|token=|secret=)/i;
 
+export class RequestCoordinator {
+  constructor() {
+    this.active = new WeakMap();
+  }
+
+  begin(target) {
+    this.active.get(target)?.abort();
+    const controller = new AbortController();
+    this.active.set(target, controller);
+    const isCurrent = () => this.active.get(target) === controller;
+
+    return {
+      signal: controller.signal,
+      isCurrent,
+      finish: () => {
+        if (isCurrent()) this.active.delete(target);
+      },
+    };
+  }
+}
+
+const outputRequests = new RequestCoordinator();
+
+export function formatLocalInputDate(value = new Date()) {
+  const year = Number(value?.getFullYear?.());
+  const month = Number(value?.getMonth?.()) + 1;
+  const day = Number(value?.getDate?.());
+  if (![year, month, day].every(Number.isInteger)) {
+    throw new TypeError("A valid local calendar date is required");
+  }
+  return `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+export function shiftIsoDate(value, days) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value)) || !Number.isInteger(days)) {
+    throw new TypeError("A valid ISO date and integer day shift are required");
+  }
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) {
+    throw new TypeError("A valid ISO date is required");
+  }
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+export function parseResponseText(text, label = "Service") {
+  try {
+    return JSON.parse(String(text));
+  } catch {
+    throw new Error(`${label} returned an unreadable response. Try again shortly.`);
+  }
+}
+
 export function element(tag, options = {}, children = []) {
   const node = document.createElement(tag);
   for (const [key, value] of Object.entries(options)) {
@@ -14,8 +67,12 @@ export function element(tag, options = {}, children = []) {
     if (key === "className") node.className = value;
     else if (key === "text") node.textContent = value;
     else if (key === "dataset") Object.assign(node.dataset, value);
-    else if (key.startsWith("aria")) node.setAttribute(key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`), value);
-    else if (key in node) node[key] = value;
+    else if (key.startsWith("aria")) {
+      node.setAttribute(
+        key.replace(/[A-Z]/g, (match) => `-${match.toLowerCase()}`),
+        value,
+      );
+    } else if (key in node) node[key] = value;
     else node.setAttribute(key, value);
   }
   for (const child of Array.isArray(children) ? children : [children]) {
@@ -53,6 +110,7 @@ export function clearOutput(output) {
 export function showLoading(output, label = "Loading current data…") {
   clearOutput(output);
   output.classList.add("state-loading");
+  output.setAttribute("aria-busy", "true");
   output.append(
     element("div", { className: "loading-row" }, [
       element("span", { className: "spinner", ariaHidden: "true" }),
@@ -90,13 +148,18 @@ export async function requestJson(path, output) {
     return null;
   }
 
+  const request = outputRequests.begin(output);
   showLoading(output);
   try {
     const response = await fetch(url, {
       headers: { Accept: "application/json" },
       credentials: "same-origin",
+      signal: request.signal,
     });
-    const payload = await response.json();
+    const text = await response.text();
+    if (!request.isCurrent()) return null;
+
+    const payload = parseResponseText(text, "NASA Data Hub");
     if (!response.ok || !payload.ok) {
       const retry = response.headers.get("retry-after");
       const suffix = retry ? ` Try again in about ${retry} seconds.` : "";
@@ -104,8 +167,12 @@ export async function requestJson(path, output) {
     }
     return payload;
   } catch (error) {
+    if (error?.name === "AbortError" || !request.isCurrent()) return null;
     showError(output, error?.message || "Unexpected request failure.");
     return null;
+  } finally {
+    if (request.isCurrent()) output.removeAttribute("aria-busy");
+    request.finish();
   }
 }
 
@@ -116,14 +183,16 @@ export function formatNumber(value, maximumFractionDigits = 1) {
 }
 
 export function formatDateTime(value) {
-  if (value === null || value === undefined || value === "") return "Time not supplied";
+  if (value === null || value === undefined || value === "") {
+    return "Time not supplied";
+  }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
-  return new Intl.DateTimeFormat("en-GB", {
+  return `${new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: "UTC",
-  }).format(date) + " UTC";
+  }).format(date)} UTC`;
 }
 
 export function rawDisclosure(value) {
@@ -135,7 +204,11 @@ export function rawDisclosure(value) {
   return details;
 }
 
-export function buildShareUrl(view, params = {}, base = window.location.href) {
+export function buildShareUrl(
+  view,
+  params = {},
+  base = globalThis.window?.location?.href || "https://nasa-data-hub.vercel.app/",
+) {
   if (!Object.hasOwn(SHARE_ALLOWLIST, view)) throw new Error("Unknown share view");
   const url = new URL(base);
   url.search = "";
@@ -157,24 +230,26 @@ export function readShareState() {
   const params = {};
   for (const key of SHARE_ALLOWLIST[view]) {
     const value = query.get(key);
-    if (value && value.length <= 100 && !CREDENTIAL_PATTERN.test(value)) params[key] = value;
+    if (value && value.length <= 100 && !CREDENTIAL_PATTERN.test(value)) {
+      params[key] = value;
+    }
   }
   return { view, params };
 }
 
 export async function copyShareLink(view, params, button) {
   const url = buildShareUrl(view, params);
+  const previous = button.textContent;
   try {
     await navigator.clipboard.writeText(url);
-    const previous = button.textContent;
     button.textContent = "Link copied";
-    window.setTimeout(() => {
-      button.textContent = previous;
-    }, 1800);
   } catch {
     window.history.replaceState({}, "", url);
     button.textContent = "Link ready in address bar";
   }
+  window.setTimeout(() => {
+    button.textContent = previous;
+  }, 2200);
 }
 
 export function officialApodUrl(date) {

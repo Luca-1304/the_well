@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
         with:
-          node-version: "24"
+          node-version: "22"
       - name: Validate Vercel configuration JSON
         working-directory: apps/nasa_data_hub/hosted
         run: node -e "JSON.parse(require('node:fs').readFileSync('vercel.json', 'utf8'))"

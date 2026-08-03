@@ -8,14 +8,24 @@ The website is intentionally public because it presents public NASA and EONET da
 
 ## Product views
 
-Version 1.1 presents the four supported data families as readable interfaces rather than raw API output:
+Version 1.2 presents the four supported data families as readable interfaces rather than raw API output:
 
-- Astronomy Picture of the Day with media, explanation, attribution and official publication links.
+- Astronomy Picture of the Day with uncropped media, explanation, attribution and official publication links.
 - Near-Earth Objects in a sortable table with diameter, speed, miss distance, lunar-distance equivalents and hazard classification context.
 - DONKI space-weather records as a chronological timeline with expanded event names and source links.
 - EONET natural events as source-backed cards with category, latest geometry and reporting-agency links.
 
 Every view retains an optional raw public response disclosure for technical inspection.
+
+Version 1.2 also improves interaction reliability:
+
+- Date defaults follow the visitor's local calendar rather than UTC serialisation.
+- APOD and observational space-weather inputs cannot select future dates.
+- Near-Earth Object queries may use valid future dates but remain constrained to NASA's seven-day feed window.
+- A newer request aborts an older request for the same view, preventing stale results from replacing current results.
+- Non-JSON gateway failures become controlled public messages rather than broken rendering.
+- Result regions expose an accessible busy state while loading.
+- The serverless runtime is pinned to Node.js 22 LTS and identified by the health endpoint.
 
 ## Trust boundary
 
@@ -58,7 +68,7 @@ The production deployment deliberately uses NASA's public `DEMO_KEY` until highe
 
 ## Run the checks
 
-Node.js 20 or newer is required.
+Node.js 22 is required and matches the production runtime.
 
 ```bash
 npm run check
@@ -71,20 +81,22 @@ The checks cover:
 - Retry and malformed-response handling
 - Recursive key redaction, including mixed-case query parameters
 - Correct EONET `/api/v3/events` routing
-- Health responses without network access
+- Versioned health responses and runtime identity
 - Rejection of invalid NEO and EONET windows
 - In-flight request deduplication
+- Superseded browser-request cancellation
 - Anonymous courtesy limits
 - Frontend credential isolation and absence of unsafe HTML sinks
 - Secure share-state allow-listing
+- Local-calendar date handling and NEO window calculations
 - Visible attribution, privacy and independence statements
-- Production smoke assertion behaviour
+- Production smoke assertion and exact asset-parity behaviour
 
 ## Production monitoring
 
 The repository includes a dedicated `NASA Data Hub Production Smoke` workflow.
 
-Scheduled runs execute every six hours in **structural** mode. They verify the public alias, health contract, deployed JavaScript and CSS assets, and hardened security headers without calling quota-bearing NASA data routes.
+Scheduled runs execute every six hours in **structural** mode. They verify the public alias, v1.2 health contract, Node 22 runtime identity, hardened security headers and exact equality between production static files and the canonical files in GitHub. These checks do not call quota-bearing NASA data routes.
 
 A manual workflow run can select **full** mode. Full mode performs one bounded check against APOD, NeoWs, DONKI and EONET, verifies that returned payloads remain credential-free, and confirms that an invalid NeoWs window fails with an uncached HTTP 400 response.
 
@@ -105,7 +117,7 @@ Set this folder as the project root:
 apps/nasa_data_hub/hosted
 ```
 
-No build command is required.
+No build command is required. `package.json` pins Node.js 22.x so Vercel and CI use the same major runtime.
 
 For higher limits, create a newly rotated NASA key and add it directly through:
 
@@ -131,6 +143,7 @@ Redeploy after adding or changing an environment variable so the new function re
 - API errors and health responses use `Cache-Control: no-store`.
 - CSP without inline-script permission, clickjacking protection, MIME sniffing protection, restrictive permissions policy and no-referrer policy.
 - No application logging of request URLs or credential values.
+- Version and runtime metadata contain no credential or account information.
 
 ## Accuracy and attribution
 

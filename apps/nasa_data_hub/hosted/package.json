@@ -1,6 +1,6 @@
 {
   "name": "nasa-data-hub-hosted",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -9,6 +9,6 @@
     "smoke:production:full": "node scripts/production-smoke.mjs --mode full"
   },
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   }
 }

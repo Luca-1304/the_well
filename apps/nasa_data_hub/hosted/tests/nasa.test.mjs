@@ -105,7 +105,7 @@ test("ISO date validation rejects impossible and malformed dates", () => {
   assert.equal(isIsoDate(""), false);
 });
 
-test("health response exposes mode and privacy but never a credential", async () => {
+test("health response exposes v1.2 runtime and privacy without a credential", async () => {
   const previous = process.env.NASA_API_KEY;
   process.env.NASA_API_KEY = "private-value";
   const response = fakeResponse();
@@ -121,11 +121,13 @@ test("health response exposes mode and privacy but never a credential", async ()
   }
 
   assert.equal(response.statusCode, 200);
-  assert.equal(response.payload.version, "1.1");
+  assert.equal(response.payload.version, "1.2");
+  assert.equal(response.payload.runtime, `node-${process.versions.node.split(".")[0]}`);
   assert.equal(response.payload.using_demo_key, false);
   assert.match(response.payload.privacy, /no account/i);
   assert.equal(JSON.stringify(response.payload).includes("private-value"), false);
   assert.equal(response.headers.get("cache-control"), "no-store");
+  assert.equal(response.headers.get("x-app-version"), "1.2");
 });
 
 test("invalid NEO windows fail before any network request", async () => {
