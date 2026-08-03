@@ -1,13 +1,25 @@
 import { initApod } from "./features/apod.js";
 import { initDonki } from "./features/donki.js";
 import { initEonet } from "./features/eonet.js";
-import { readShareState } from "./features/common.js";
+import {
+  formatLocalInputDate,
+  parseResponseText,
+  readShareState,
+} from "./features/common.js";
 import { initNeo } from "./features/neo.js";
 
-const today = new Date().toISOString().slice(0, 10);
+const stabilityStyles = document.createElement("link");
+stabilityStyles.rel = "stylesheet";
+stabilityStyles.href = "/stability.css";
+document.head.append(stabilityStyles);
+
+const today = formatLocalInputDate();
 for (const id of ["apod-date", "neo-start", "neo-end", "donki-start", "donki-end"]) {
   const input = document.getElementById(id);
-  if (input) input.value = today;
+  if (input) {
+    input.value = today;
+    input.max = today;
+  }
 }
 
 const statusText = document.getElementById("service-status");
@@ -23,20 +35,23 @@ function recordSuccess(label) {
 }
 
 async function loadHealth() {
+  const state = statusText.closest(".service-state");
   try {
     const response = await fetch("/api/health", {
       headers: { Accept: "application/json" },
       credentials: "same-origin",
     });
-    const payload = await response.json();
+    const payload = parseResponseText(await response.text(), "Health check");
     if (!response.ok || !payload.ok) throw new Error("Health check failed");
     statusText.textContent = payload.using_demo_key
       ? "Service live · public NASA quota"
       : "Service live · private server quota";
-    statusText.closest(".service-state")?.classList.add("is-live");
+    state?.classList.remove("is-warning");
+    state?.classList.add("is-live");
   } catch {
     statusText.textContent = "Service status unavailable";
-    statusText.closest(".service-state")?.classList.add("is-warning");
+    state?.classList.remove("is-live");
+    state?.classList.add("is-warning");
   }
 }
 
