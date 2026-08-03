@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="NASA astronomy, asteroid, space-weather and Earth-event data in one secure dashboard">
+  <title>NASA Data Hub</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --background: #050814;
+      --panel: #101a31;
+      --line: #293b60;
+      --text: #edf4ff;
+      --muted: #9fb0cc;
+      --accent: #3b78d1;
+      --good: #76e6ad;
+      --error: #ffaaaa;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at 18% -10%, #1d3970aa, transparent 38rem), var(--background);
+      color: var(--text);
+      font: 15px/1.55 Inter, system-ui, sans-serif;
+    }
+    .wrap { width: min(1140px, calc(100% - 32px)); margin: auto; }
+    header { padding: 34px 0 46px; }
+    nav { display: flex; justify-content: space-between; gap: 18px; align-items: center; }
+    .brand { font-weight: 800; }
+    .status { color: var(--muted); }
+    .dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-right: 8px;
+      border-radius: 50%;
+      background: var(--good);
+      box-shadow: 0 0 13px var(--good);
+    }
+    h1 {
+      max-width: 800px;
+      margin: 75px 0 22px;
+      font-size: clamp(3rem, 8vw, 6.5rem);
+      line-height: .92;
+      letter-spacing: -.065em;
+    }
+    .lead { max-width: 690px; color: var(--muted); font-size: 1.06rem; }
+    .secure { border-left: 2px solid var(--accent); padding-left: 13px; color: #bdcbea; }
+    main { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; padding-bottom: 60px; }
+    section {
+      min-width: 0;
+      padding: 22px;
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: linear-gradient(#14203aee, #0d1528ee);
+      box-shadow: 0 24px 65px #0005;
+    }
+    .wide { grid-column: 1 / -1; }
+    h2 { margin: 0 0 15px; font-size: 1.18rem; }
+    form { display: flex; flex-wrap: wrap; gap: 9px; margin-bottom: 15px; }
+    input, select, button {
+      min-height: 41px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 9px 11px;
+      background: #091121;
+      color: var(--text);
+      font: inherit;
+    }
+    input, select { flex: 1 1 140px; min-width: 0; }
+    button { background: var(--accent); font-weight: 750; cursor: pointer; }
+    button:hover { filter: brightness(1.08); }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 2px solid #8bbcff;
+      outline-offset: 2px;
+    }
+    .output { min-height: 120px; max-height: 430px; overflow: auto; color: var(--muted); }
+    pre { white-space: pre-wrap; word-break: break-word; font: 12px/1.55 ui-monospace, monospace; }
+    .error { color: var(--error); }
+    .apod { display: grid; grid-template-columns: minmax(220px, .8fr) minmax(0, 1.2fr); gap: 20px; }
+    .apod img { width: 100%; max-height: 430px; object-fit: cover; border: 1px solid var(--line); border-radius: 12px; }
+    .apod h3 { margin: 0 0 10px; color: var(--text); font-size: 1.5rem; }
+    @media (max-width: 780px) {
+      main { grid-template-columns: 1fr; }
+      .wide { grid-column: auto; }
+      .apod { grid-template-columns: 1fr; }
+      h1 { margin-top: 55px; }
+    }
+    @media (max-width: 520px) {
+      nav { align-items: flex-start; flex-direction: column; }
+      button { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="wrap">
+      <nav>
+        <div class="brand">NASA Data Hub</div>
+        <div class="status"><i class="dot"></i><span id="status">Checking service…</span></div>
+      </nav>
+      <h1>Space and Earth data, without the noise.</h1>
+      <p class="lead">Explore astronomy imagery, near-Earth objects, space weather and active natural events from one focused dashboard.</p>
+      <p class="secure">Credentials remain server-side. This page never receives or stores the NASA key.</p>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="wide">
+      <h2>Astronomy Picture of the Day</h2>
+      <form id="apod-form">
+        <input id="apod-date" type="date" aria-label="APOD date">
+        <button type="submit">Load image</button>
+      </form>
+      <div id="apod-output" class="output" aria-live="polite">Choose a date.</div>
+    </section>
+
+    <section>
+      <h2>Near-Earth Objects</h2>
+      <form id="neo-form">
+        <input id="neo-start" type="date" aria-label="Start date" required>
+        <input id="neo-end" type="date" aria-label="End date">
+        <button type="submit">Find approaches</button>
+      </form>
+      <div id="neo-output" class="output" aria-live="polite">Search up to seven days.</div>
+    </section>
+
+    <section>
+      <h2>Space Weather</h2>
+      <form id="donki-form">
+        <select id="donki-type" aria-label="Space weather event type">
+          <option>FLR</option>
+          <option>CME</option>
+          <option>GST</option>
+          <option>HSS</option>
+          <option>SEP</option>
+          <option>notifications</option>
+        </select>
+        <input id="donki-start" type="date" aria-label="Start date">
+        <input id="donki-end" type="date" aria-label="End date">
+        <button type="submit">Load events</button>
+      </form>
+      <div id="donki-output" class="output" aria-live="polite">Review solar activity.</div>
+    </section>
+
+    <section class="wide">
+      <h2>Earth Natural Events</h2>
+      <form id="eonet-form">
+        <select id="eonet-status" aria-label="Event status">
+          <option>open</option>
+          <option>closed</option>
+          <option>all</option>
+        </select>
+        <input id="eonet-days" type="number" min="1" placeholder="Last N days" aria-label="Last N days">
+        <input id="eonet-category" maxlength="80" placeholder="Category, e.g. wildfires" aria-label="Event category">
+        <button type="submit">Load events</button>
+      </form>
+      <div id="eonet-output" class="output" aria-live="polite">View events tracked by EONET.</div>
+    </section>
+  </main>
+
+  <script>
+    const today = new Date().toISOString().slice(0, 10);
+    for (const id of ["apod-date", "neo-start", "neo-end", "donki-start", "donki-end"]) {
+      document.getElementById(id).value = today;
+    }
+
+    const pretty = (value) => JSON.stringify(value, null, 2);
+
+    function safeHttpUrl(value) {
+      try {
+        const url = new URL(value);
+        return ["http:", "https:"].includes(url.protocol) ? url.href : null;
+      } catch {
+        return null;
+      }
+    }
+
+    async function requestJson(path, output) {
+      output.classList.remove("error");
+      output.textContent = "Loading…";
+      try {
+        const response = await fetch(path);
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        return payload;
+      } catch (error) {
+        output.textContent = `Error: ${error.message}`;
+        output.classList.add("error");
+        return null;
+      }
+    }
+
+    function showJson(output, value) {
+      const pre = document.createElement("pre");
+      pre.textContent = pretty(value);
+      output.replaceChildren(pre);
+    }
+
+    fetch("/api/health")
+      .then((response) => response.json())
+      .then((payload) => {
+        document.getElementById("status").textContent = payload.using_demo_key
+          ? "Live with NASA DEMO_KEY"
+          : "Live with a private server key";
+      })
+      .catch(() => {
+        document.getElementById("status").textContent = "Health unavailable";
+      });
+
+    document.getElementById("apod-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const output = document.getElementById("apod-output");
+      const date = document.getElementById("apod-date").value;
+      const payload = await requestJson(`/api/apod?date=${encodeURIComponent(date)}`, output);
+      if (!payload) return;
+
+      const data = payload.data;
+      const wrapper = document.createElement("div");
+      wrapper.className = "apod";
+      const media = document.createElement("div");
+      const imageUrl = data.media_type === "image" && safeHttpUrl(data.url);
+      if (imageUrl) {
+        const image = document.createElement("img");
+        image.src = imageUrl;
+        image.alt = data.title || "NASA Astronomy Picture of the Day";
+        media.append(image);
+      } else {
+        media.textContent = data.url || "No image returned";
+      }
+
+      const copy = document.createElement("div");
+      const heading = document.createElement("h3");
+      heading.textContent = data.title || "Untitled";
+      const explanation = document.createElement("p");
+      explanation.textContent = data.explanation || "";
+      const metadata = document.createElement("pre");
+      metadata.textContent = pretty({
+        date: data.date,
+        copyright: data.copyright || null,
+        rate_limit: payload.rate_limit,
+      });
+      copy.append(heading, explanation, metadata);
+      wrapper.append(media, copy);
+      output.replaceChildren(wrapper);
+    });
+
+    document.getElementById("neo-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const output = document.getElementById("neo-output");
+      const start = document.getElementById("neo-start").value;
+      const end = document.getElementById("neo-end").value;
+      const payload = await requestJson(
+        `/api/neo?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}`,
+        output,
+      );
+      if (payload) {
+        showJson(output, {
+          element_count: payload.data.element_count,
+          near_earth_objects: payload.data.near_earth_objects,
+          rate_limit: payload.rate_limit,
+        });
+      }
+    });
+
+    document.getElementById("donki-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const output = document.getElementById("donki-output");
+      const query = new URLSearchParams({
+        type: document.getElementById("donki-type").value,
+        start: document.getElementById("donki-start").value,
+        end: document.getElementById("donki-end").value,
+      });
+      const payload = await requestJson(`/api/donki?${query}`, output);
+      if (payload) {
+        showJson(output, {
+          count: payload.data.length,
+          events: payload.data,
+          rate_limit: payload.rate_limit,
+        });
+      }
+    });
+
+    document.getElementById("eonet-form").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const output = document.getElementById("eonet-output");
+      const query = new URLSearchParams({
+        status: document.getElementById("eonet-status").value,
+        limit: "30",
+      });
+      const days = document.getElementById("eonet-days").value;
+      const category = document.getElementById("eonet-category").value.trim();
+      if (days) query.set("days", days);
+      if (category) query.set("category", category);
+      const payload = await requestJson(`/api/eonet?${query}`, output);
+      if (payload) showJson(output, payload.data);
+    });
+  </script>
+</body>
+</html>
