@@ -3,11 +3,11 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
-  assertAssetParity,
   formatLocalInputDate,
   parseResponseText,
   RequestCoordinator,
 } from "../features/common.js";
+import { assertAssetParity } from "../scripts/production-smoke.mjs";
 
 const source = (relativePath) =>
   readFile(new URL(relativePath, import.meta.url), "utf8");
@@ -51,9 +51,10 @@ test("asset parity normalises line endings but rejects real deployment drift", (
 test("v1.2 source pins the runtime and exposes date constraints", async () => {
   const packageJson = JSON.parse(await source("../package.json"));
   const app = await source("../app.js");
-  const css = await source("../styles.css");
+  const stabilityCss = await source("../stability.css");
 
+  assert.equal(packageJson.version, "1.2.0");
   assert.equal(packageJson.engines.node, "22.x");
   assert.match(app, /input\.max = today/);
-  assert.match(css, /object-fit:\s*contain/);
+  assert.match(stabilityCss, /object-fit:\s*contain/);
 });
