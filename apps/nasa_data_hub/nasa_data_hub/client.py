@@ -10,7 +10,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, urlopen
 
 NASA_BASE_URL = "https://api.nasa.gov"
@@ -204,7 +204,9 @@ class NASAClient:
                 with urlopen(request, timeout=self.timeout_seconds) as response:
                     if authenticated:
                         self._update_rate_limit(response.headers)
-                    payload = json.loads(response.read().decode("utf-8"))
+                    payload = _redact_api_keys(
+                        json.loads(response.read().decode("utf-8"))
+                    )
                     self._write_cache(cache_file, payload)
                     return payload
             except HTTPError as exc:
@@ -377,6 +379,37 @@ class NASAClient:
             self._get(EONET_BASE_URL, "categories", authenticated=False),
             "EONET categories",
         )
+
+
+def _redact_api_keys(value: Any) -> Any:
+    """Remove API credentials echoed inside nested response URLs."""
+    if isinstance(value, dict):
+        return {key: _redact_api_keys(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_redact_api_keys(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_redact_api_keys(item) for item in value)
+    if not isinstance(value, str) or "api_key=" not in value.lower():
+        return value
+
+    try:
+        parts = urlsplit(value)
+    except ValueError:
+        return value
+    if parts.scheme not in {"http", "https"} or not parts.query:
+        return value
+
+    clean_query = urlencode(
+        [
+            (key, item)
+            for key, item in parse_qsl(parts.query, keep_blank_values=True)
+            if key.lower() != "api_key"
+        ],
+        doseq=True,
+    )
+    return urlunsplit(
+        (parts.scheme, parts.netloc, parts.path, clean_query, parts.fragment)
+    )
 
 
 def _expect_dict(value: Any, label: str) -> dict[str, Any]:
