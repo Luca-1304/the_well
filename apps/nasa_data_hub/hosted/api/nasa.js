@@ -400,12 +400,7 @@ export default async function handler(request, response) {
       result = await fetchJson(buildEonetUrl(query));
     }
 
-    return sendJson(
-      response,
-      200,
-      { ok: true, ...result },
-      { cache: true, headers: courtesyHeaders },
-    );
+    return sendJson(response, 200, { ok: true, ...result }, { cache: true });
   } catch (error) {
     const status = Number.isInteger(error?.status) ? error.status : 500;
     return sendJson(response, status, {
