@@ -1,180 +1,186 @@
-<div align="center">
-    <img src="https://raw.githubusercontent.com/PolymathicAI/the_well/master/docs/assets/images/the_well_color.svg" width="60%"/>
-</div>
+# NASA Data Hub — Hosted Edition
 
-<br>
+This folder is the public-safe, reproducible source for the hosted NASA Data Hub:
 
-<div align="center">
+**Production:** https://nasa-data-hub.vercel.app
 
-![Test Workflow](https://github.com/PolymathicAI/the_well/actions/workflows/tests.yaml/badge.svg)
-[![PyPI](https://img.shields.io/pypi/v/the_well)](https://pypi.org/project/the-well/)
-[![Docs](https://img.shields.io/badge/docs-latest---?color=25005a&labelColor=grey)](https://polymathic-ai.org/the_well/)
-[![arXiv](https://img.shields.io/badge/arXiv-2412.00568---?logo=arXiv&labelColor=b31b1b&color=grey)](https://arxiv.org/abs/2412.00568)
-[![NeurIPS](https://img.shields.io/badge/NeurIPS-2024---?logo=https%3A%2F%2Fneurips.cc%2Fstatic%2Fcore%2Fimg%2FNeurIPS-logo.svg&labelColor=68448B&color=b3b3b3)](https://openreview.net/forum?id=00Sx577BT3)
-[![HuggingFace](https://img.shields.io/badge/datasets-%20?logo=huggingface&logoColor=%23FFD21E&label=Hugging%20Face&labelColor=%236B7280&color=%23FFD21E
-)](https://huggingface.co/collections/polymathic-ai/the-well-67e129f4ca23e0447395d74c)
+**Public maintainer and release contract:** [`PROJECT.md`](./PROJECT.md)
 
-</div>
+Internal priorities, private deployment administration and account-level operations are deliberately managed outside this public repository. This folder contains only the source, tests and public technical evidence required to understand, verify and reproduce the application.
 
-# The Well: 15TB of Physics Simulations
+The website is intentionally public because it presents public NASA and EONET data. Credentials, deployment permissions, account access, billing and operational controls remain private.
 
+## Product views
 
-Welcome to the Well, a large-scale collection of machine learning datasets containing numerical simulations of a wide variety of spatiotemporal physical systems. The Well draws from domain scientists and numerical software developers to provide 15TB of data across 16 datasets covering diverse domains such as biological systems, fluid dynamics, acoustic scattering, as well as magneto-hydrodynamic simulations of extra-galactic fluids or supernova explosions. These datasets can be used individually or as part of a broader benchmark suite for accelerating research in machine learning and computational sciences.
+Version 1.2 presents the four supported data families as readable interfaces rather than raw API output:
 
-## Tap into the Well
+- Astronomy Picture of the Day with uncropped media, explanation, attribution and official publication links.
+- Near-Earth Objects in a sortable table with diameter, speed, miss distance, lunar-distance equivalents and hazard classification context.
+- DONKI space-weather records as a chronological timeline with expanded event names and source links.
+- EONET natural events as source-backed cards with category, latest geometry and reporting-agency links.
 
-Once the Well package installed and the data downloaded you can use them in your training pipeline.
+Every view retains an optional raw public response disclosure for technical inspection.
 
-```python
-from the_well.data import WellDataset
-from torch.utils.data import DataLoader
+Version 1.2 also improves interaction reliability:
 
-trainset = WellDataset(
-    well_base_path="path/to/base",
-    well_dataset_name="name_of_the_dataset",
-    well_split_name="train"
-)
-train_loader = DataLoader(trainset)
+- Date defaults follow the visitor's local calendar rather than UTC serialisation.
+- APOD and observational space-weather inputs cannot select future dates.
+- Near-Earth Object queries may use valid future dates but remain constrained to NASA's seven-day feed window.
+- A newer request aborts an older request for the same view, preventing stale results from replacing current results.
+- Non-JSON gateway failures become controlled public messages rather than broken rendering.
+- Result regions expose an accessible busy state while loading.
+- The serverless runtime is pinned to Node.js 22 LTS and identified by the health endpoint.
 
-for batch in train_loader:
-    ...
-```
+## Trust boundary
 
-For more information regarding the interface, please refer to the [API](https://github.com/PolymathicAI/the_well/tree/master/docs/api.md) and the [tutorials](https://github.com/PolymathicAI/the_well/blob/master/docs/tutorials/dataset.ipynb).
+### Public
 
-### Installation
+- Browser interface and source
+- Serverless adapter source
+- Routing and security-header configuration
+- Tests and deployment documentation
+- Public NASA and EONET response data after credential redaction
+- Shared URLs containing only allow-listed public filters
 
-If you plan to use The Well datasets to train or evaluate deep learning models, we recommend to use a machine with enough computing resources.
-We also recommend creating a new Python (>=3.10) environment to install the Well. For instance, with [venv](https://docs.python.org/3/library/venv.html):
+### Private
 
-```
-python -m venv path/to/env
-source path/to/env/activate/bin
-```
+- `NASA_API_KEY`
+- Vercel account and project settings
+- GitHub/Vercel deployment permissions
+- Billing, firewall and monitoring controls
+- Internal planning and operational backlog
 
-#### From PyPI
+The browser never receives the API key. The serverless function adds it only to requests sent to `api.nasa.gov`, then recursively removes any `api_key` query parameter NASA may echo inside response links before the response is cached or returned. EONET requests never receive the NASA key.
 
-The Well package can be installed directly from PyPI.
+The site creates no account or advertising profile and includes no third-party analytics or advertising scripts.
 
-```
-pip install the_well
-```
+## Secure sharing
 
-#### From Source
+Each view can produce a shareable URL. The URL is rebuilt from an allow-list and may contain only the relevant public date, event type, status, category and sort filters. Existing query strings, tracking parameters, unknown fields and credential-shaped values are discarded.
 
-It can also be installed from source. For this, clone the [repository](https://github.com/PolymathicAI/the_well) and install the package with its dependencies.
+Sharing uses the browser clipboard when available. No response payload, account identifier or credential is embedded in the URL.
 
-```
-git clone https://github.com/PolymathicAI/the_well
-cd the_well
-pip install .
-```
+## Quota protection
 
-Depending on your acceleration hardware, you can specify `--extra-index-url` to install the relevant PyTorch version. For example, use
+The proxy applies two lightweight protections:
 
-```
-pip install . --extra-index-url https://download.pytorch.org/whl/cu121
-```
+1. Identical simultaneous upstream requests share one in-flight operation per warm serverless instance.
+2. A temporary, anonymous courtesy limit reduces the chance that one browser consumes the shared public quota.
 
-to install the dependencies built for CUDA 12.1.
+The courtesy limiter stores only an ephemeral request count associated with the platform-provided client address inside a warm function instance. It is not a durable user profile and is not claimed as a distributed security firewall. Vercel firewall and bot controls remain the appropriate layer for coordinated or distributed abuse.
 
-#### Benchmark Dependencies
+The production deployment deliberately uses NASA's public `DEMO_KEY` until higher limits are actually necessary. Never paste a newly rotated private key into source, commits, issues, pull requests, workflow inputs, browser code or chat.
 
-If you want to run the benchmarks, you should install additional dependencies.
+## Run the checks
 
-```
-pip install the_well[benchmark]
-```
+Node.js 22 is required and matches the production runtime.
 
-### Downloading the Data
-
-The Well datasets range between 6.9GB and 5.1TB of data each, for a total of 15TB for the full collection. Ensure that your system has enough free disk space to accomodate the datasets you wish to download.
-
-Once `the_well` is installed, you can use the `the-well-download` command to download any dataset of The Well.
-
-```
-the-well-download --base-path path/to/base --dataset active_matter --split train
-```
-
-If `--dataset` and `--split` are omitted, all datasets and splits will be downloaded. This could take a while!
-
-### Streaming from Hugging Face
-
-Most of the Well datasets are also hosted on [Hugging Face](https://huggingface.co/collections/polymathic-ai/the-well-67e129f4ca23e0447395d74c). Data can be streamed directly from the hub using the following code.
-
-```python
-from the_well.data import WellDataset
-from torch.utils.data import DataLoader
-
-# The following line may take a couple of minutes to instantiate the datamodule
-trainset = WellDataset(
-    well_base_path="hf://datasets/polymathic-ai/",  # access from HF hub
-    well_dataset_name="active_matter",
-    well_split_name="train",
-)
-train_loader = DataLoader(trainset)
-
-for batch in train_loader:
-    ...
-```
-
-For better performance in large training, we advise [downloading the data locally](#downloading-the-data) instead of streaming it over the network.
-
-## Benchmark
-
-### Train Models on the Well
-
-The repository allows benchmarking surrogate models on the different datasets that compose the Well. Some state-of-the-art models are already implemented in [`models`](https://github.com/PolymathicAI/the_well/tree/master/the_well/benchmark/models), while [dataset classes](https://github.com/PolymathicAI/the_well/tree/master/the_well/data) handle the raw data of the Well.
-The benchmark relies on [a training script](https://github.com/PolymathicAI/the_well/blob/master/the_well/benchmark/train.py) that uses [hydra](https://hydra.cc/) to instantiate various classes (e.g. dataset, model, optimizer) from [configuration files](https://github.com/PolymathicAI/the_well/tree/master/the_well/benchmark/configs).
-
-For instance, to run the training script of default FNO architecture on the active matter dataset, launch the following commands:
+Before opening or merging a pull request, validate the proposed source:
 
 ```bash
-cd the_well/benchmark
-python train.py experiment=fno server=local data=active_matter
+npm run check
 ```
 
-Each argument corresponds to a specific configuration file. In the command above `server=local` indicates the training script to use [`local.yaml`](https://github.com/PolymathicAI/the_well/tree/master/the_well/benchmark/configs/server/local.yaml), which just declares the relative path to the data. The configuration can be overridden directly or edited with new YAML files. Please refer to [hydra documentation](https://hydra.cc/) for editing configuration.
+After the merged source has been deployed, prove that production matches it without consuming NASA route quota:
 
-You can use this command within a sbatch script to launch the training with Slurm.
-
-### Load Benchmarked Model Checkpoints
-
-The model benchmarked in the original paper of the Well have been designed as a a simple baseline. They should not be considered as state-of-the-art. We hope that the community will build upon these results to develop better architectures for PDE surrogate modeling.
-
-Most of the checkpoints of the models are available on [Hugging Face](https://huggingface.co/collections/polymathic-ai/the-well-benchmark-models-67e69bd7cd8e60229b5cd43e). To load a specific checkpoint follow the example below of the FNO model trained on the `active_matter` dataset.
-
-```python
-from the_well.benchmark.models import FNO
-
-model = FNO.from_pretrained("polymathic-ai/FNO-active_matter")
+```bash
+npm run release:check
 ```
 
-## Usage notes
+For a release that changes API behaviour, run one bounded full verification after the quota-free post-deployment check succeeds:
 
-- The dataset `viscoelastic_instability` has been deprecated due to processing errors in the data. It remains available for backwards comparisons. However `viscoelastic_instability_v2` contains the same data without the processing error.
-
-## Citation
-
-This project has been led by the <a href="https://polymathic-ai.org/">Polymathic AI</a> organization, in collaboration with researchers from the Flatiron Institute, University of Colorado Boulder, University of Cambridge, New York University, Rutgers University, Cornell University, University of Tokyo, Los Alamos Natioinal Laboratory, University of California, Berkeley, Princeton University, CEA DAM, and University of Liège.
-
-If you find this project useful for your research, please consider citing
-
-```
-@article{ohana2024well,
-  title={The well: a large-scale collection of diverse physics simulations for machine learning},
-  author={Ohana, Ruben and McCabe, Michael and Meyer, Lucas and Morel, Rudy and Agocs, Fruzsina and Beneitez, Miguel and Berger, Marsha and Burkhart, Blakesly and Dalziel, Stuart and Fielding, Drummond and others},
-  journal={Advances in Neural Information Processing Systems},
-  volume={37},
-  pages={44989--45037},
-  year={2024}
-}
+```bash
+npm run release:check:full
 ```
 
-## Contact
+Production parity is intentionally a post-deployment gate. A pull request that changes static assets should not match the previous production release before it has been merged and deployed.
 
-For questions regarding this project, please contact [Ruben Ohana](https://rubenohana.github.io/) and [Michael McCabe](https://mikemccabe210.github.io/) at {rohana,mmccabe}@flatironinstitute.org.
+The checks cover:
 
-## Bug Reports and Feature Requests
+- JavaScript syntax
+- Successful mocked upstream routes
+- Retry and malformed-response handling
+- Recursive key redaction, including mixed-case query parameters
+- Correct EONET `/api/v3/events` routing
+- Versioned health responses and runtime identity
+- Rejection of invalid NEO and EONET windows
+- In-flight request deduplication
+- Superseded browser-request cancellation
+- Anonymous courtesy limits
+- Frontend credential isolation and absence of unsafe HTML sinks
+- Secure share-state allow-listing
+- Local-calendar date handling and NEO window calculations
+- Visible attribution, privacy and independence statements
+- Production smoke assertion and exact asset-parity behaviour
 
-To report a bug (in the data or the code), request a feature or simply ask a question, you can [open an issue](https://github.com/PolymathicAI/the_well/issues) on the [repository](https://github.com/PolymathicAI/the_well).
+## Production monitoring
+
+The repository includes a dedicated `NASA Data Hub Production Smoke` workflow.
+
+Scheduled runs execute every six hours in **structural** mode. They verify the public alias, v1.2 health contract, Node 22 runtime identity, hardened security headers and exact equality between production static files and the canonical files in GitHub. These checks do not call quota-bearing NASA data routes.
+
+A manual workflow run can select **full** mode. Full mode performs one bounded check against APOD, NeoWs, DONKI and EONET, verifies that returned payloads remain credential-free, and confirms that an invalid NeoWs window fails with an uncached HTTP 400 response.
+
+The underlying smoke commands remain available for focused investigation:
+
+```bash
+npm run smoke:production
+npm run smoke:production:full
+```
+
+Full mode intentionally consumes a small amount of the public NASA quota and should be used for release verification or investigation, not frequent polling.
+
+## Deploy to Vercel
+
+Set this folder as the project root while the application remains in this repository:
+
+```text
+apps/nasa_data_hub/hosted
+```
+
+No build command is required. `package.json` pins Node.js 22.x so Vercel and CI use the same major runtime.
+
+The efficient deployment contract is:
+
+```text
+Production branch: canonical default branch
+Project root: the directory containing this README
+Preview deployments: pull requests
+Production deployments: merged canonical branch only
+```
+
+Until direct Git integration is proven, deploy only the exact package from merged canonical source, verify the resulting deployment before treating it as released, and preserve the previous READY deployment for rollback.
+
+A future move to a dedicated NASA Data Hub repository must prove its preview and production paths before this source is removed or made archival.
+
+For higher limits, create a newly rotated NASA key and add it directly through:
+
+```text
+Vercel Project → Settings → Environment Variables
+Name: NASA_API_KEY
+Targets: Production and Preview as needed
+```
+
+Redeploy after adding or changing an environment variable so the new function receives it.
+
+## Security controls
+
+- Strict route allow-list; this is not an open proxy.
+- Server-side credential injection only.
+- Recursive credential removal from nested upstream payloads.
+- Same-origin browser requests.
+- Safe DOM rendering; no upstream content is inserted through `innerHTML`.
+- HTTP(S)-only external-source links using `noopener noreferrer`.
+- Request validation for dates, limits, event types and category length.
+- Fifteen-second upstream timeout and bounded retries.
+- Public-data CDN caching plus in-flight deduplication.
+- API errors and health responses use `Cache-Control: no-store`.
+- CSP without inline-script permission, clickjacking protection, MIME sniffing protection, restrictive permissions policy and no-referrer policy.
+- No application logging of request URLs or credential values.
+- Version and runtime metadata contain no credential or account information.
+
+## Accuracy and attribution
+
+This is an independent project and is not an official NASA service. NASA and EONET data remain subject to their source terms, timing, corrections and attribution requirements. The interface does not predict impacts and must not replace scientific, operational or local emergency guidance.
+
+The repository's origin and upstream authorship are documented in the root `ORIGIN.md`.
