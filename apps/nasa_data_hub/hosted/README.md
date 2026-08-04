@@ -4,9 +4,9 @@ This folder is the public-safe, reproducible source for the hosted NASA Data Hub
 
 **Production:** https://nasa-data-hub.vercel.app
 
-**Operations and ordered backlog:** [`PROJECT.md`](./PROJECT.md)
+**Public maintainer and release contract:** [`PROJECT.md`](./PROJECT.md)
 
-`PROJECT.md` is the single operational source of truth for current state, release rules, risks and next actions. GitHub Issues are disabled in this repository, so remaining work is deliberately kept there instead of being scattered across chats and deployment notes.
+Internal priorities, private deployment administration and account-level operations are deliberately managed outside this public repository. This folder contains only the source, tests and public technical evidence required to understand, verify and reproduce the application.
 
 The website is intentionally public because it presents public NASA and EONET data. Credentials, deployment permissions, account access, billing and operational controls remain private.
 
@@ -48,6 +48,7 @@ Version 1.2 also improves interaction reliability:
 - Vercel account and project settings
 - GitHub/Vercel deployment permissions
 - Billing, firewall and monitoring controls
+- Internal planning and operational backlog
 
 The browser never receives the API key. The serverless function adds it only to requests sent to `api.nasa.gov`, then recursively removes any `api_key` query parameter NASA may echo inside response links before the response is cached or returned. EONET requests never receive the NASA key.
 
@@ -131,7 +132,7 @@ Full mode intentionally consumes a small amount of the public NASA quota and sho
 
 ## Deploy to Vercel
 
-Set this folder as the project root:
+Set this folder as the project root while the application remains in this repository:
 
 ```text
 apps/nasa_data_hub/hosted
@@ -139,17 +140,18 @@ apps/nasa_data_hub/hosted
 
 No build command is required. `package.json` pins Node.js 22.x so Vercel and CI use the same major runtime.
 
-The target efficient configuration is direct Vercel Git integration:
+The efficient deployment contract is:
 
 ```text
-Repository: Luca-1304/the_well
-Production branch: master
-Root directory: apps/nasa_data_hub/hosted
+Production branch: canonical default branch
+Project root: the directory containing this README
 Preview deployments: pull requests
-Production deployments: merged master only
+Production deployments: merged canonical branch only
 ```
 
-Until that integration is proven, deploy only the exact package from merged `master`, verify the resulting deployment before treating it as released, and preserve the previous READY deployment for rollback.
+Until direct Git integration is proven, deploy only the exact package from merged canonical source, verify the resulting deployment before treating it as released, and preserve the previous READY deployment for rollback.
+
+A future move to a dedicated NASA Data Hub repository must prove its preview and production paths before this source is removed or made archival.
 
 For higher limits, create a newly rotated NASA key and add it directly through:
 
