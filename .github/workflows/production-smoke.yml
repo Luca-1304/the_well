@@ -1,0 +1,44 @@
+name: NASA Data Hub Production Smoke
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Verification depth
+        required: true
+        default: structural
+        type: choice
+        options:
+          - structural
+          - full
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nasa-data-hub-production-smoke
+  cancel-in-progress: false
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Select verification mode
+        id: mode
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "value=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=structural" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify production
+        run: node scripts/production-smoke.mjs --mode "${{ steps.mode.outputs.value }}"
