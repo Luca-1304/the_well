@@ -29,6 +29,8 @@ jobs:
       SMOKE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'structural' }}
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: "22"
