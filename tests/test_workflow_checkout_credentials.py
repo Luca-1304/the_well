@@ -3,7 +3,6 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOWS = ROOT / ".github" / "workflows"
 
@@ -25,7 +24,9 @@ def _checkout_steps(text: str) -> list[str]:
         start = index
         while start > 0:
             candidate = lines[start]
-            if _indent(candidate) == step_indent and candidate.lstrip().startswith("- "):
+            if _indent(candidate) == step_indent and candidate.lstrip().startswith(
+                "- "
+            ):
                 break
             start -= 1
 
@@ -35,7 +36,9 @@ def _checkout_steps(text: str) -> list[str]:
             stripped = candidate.strip()
             if stripped and _indent(candidate) < step_indent:
                 break
-            if _indent(candidate) == step_indent and candidate.lstrip().startswith("- "):
+            if _indent(candidate) == step_indent and candidate.lstrip().startswith(
+                "- "
+            ):
                 break
             end += 1
 
