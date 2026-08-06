@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unittest
 from pathlib import Path
 
 
@@ -43,16 +44,25 @@ def _checkout_steps(text: str) -> list[str]:
     return steps
 
 
-def test_checkout_never_persists_authentication_after_clone() -> None:
-    offenders: list[str] = []
-    checkout_count = 0
+class WorkflowCheckoutCredentialTests(unittest.TestCase):
+    def test_checkout_never_persists_authentication_after_clone(self) -> None:
+        offenders: list[str] = []
+        checkout_count = 0
 
-    for workflow in sorted((*WORKFLOWS.glob("*.yml"), *WORKFLOWS.glob("*.yaml"))):
-        text = workflow.read_text(encoding="utf-8")
-        for position, step in enumerate(_checkout_steps(text), 1):
-            checkout_count += 1
-            if "persist-credentials: false" not in step:
-                offenders.append(f"{workflow.name} checkout step {position}")
+        for workflow in sorted((*WORKFLOWS.glob("*.yml"), *WORKFLOWS.glob("*.yaml"))):
+            text = workflow.read_text(encoding="utf-8")
+            for position, step in enumerate(_checkout_steps(text), 1):
+                checkout_count += 1
+                if "persist-credentials: false" not in step:
+                    offenders.append(f"{workflow.name} checkout step {position}")
 
-    assert checkout_count > 0
-    assert not offenders, "Checkout authentication remains persisted in: " + ", ".join(offenders)
+        self.assertGreater(checkout_count, 0)
+        self.assertEqual(
+            offenders,
+            [],
+            "Checkout authentication remains persisted in: " + ", ".join(offenders),
+        )
+
+
+if __name__ == "__main__":
+    unittest.main()
