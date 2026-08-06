@@ -5,18 +5,20 @@ on:
     paths:
       - ".github/workflows/**"
       - "tests/test_workflow_checkout_credentials.py"
+      - "tests/test_fifteen_pass_diagnostics.py"
   push:
     branches: [master]
     paths:
       - ".github/workflows/**"
       - "tests/test_workflow_checkout_credentials.py"
+      - "tests/test_fifteen_pass_diagnostics.py"
 
 permissions:
   contents: read
 
 jobs:
   verify:
-    name: Verify non-persistent checkout authentication
+    name: Verify workflow security and diagnostics
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -27,3 +29,5 @@ jobs:
           python-version: "3.12"
       - name: Verify every workflow checkout step
         run: python tests/test_workflow_checkout_credentials.py
+      - name: Verify repeated-suite diagnostics
+        run: python tests/test_fifteen_pass_diagnostics.py
