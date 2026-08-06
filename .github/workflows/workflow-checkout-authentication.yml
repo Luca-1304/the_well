@@ -25,7 +25,5 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: Install test runner
-        run: python -m pip install --disable-pip-version-check pytest
       - name: Verify every workflow checkout step
-        run: python -m pytest -q tests/test_workflow_checkout_credentials.py
+        run: python tests/test_workflow_checkout_credentials.py
