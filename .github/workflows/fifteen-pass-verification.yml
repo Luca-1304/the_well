@@ -45,17 +45,59 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install complete repository environment
         run: uv sync --all-extras --dev
+      - name: Record parent-suite environment
+        shell: bash
+        run: |
+          mkdir -p diagnostics
+          {
+            python --version
+            uv --version
+            echo "PYTHONHASHSEED=${PYTHONHASHSEED-<unset>}"
+            echo "TZ=${TZ-<unset>}"
+            echo "LC_ALL=${LC_ALL-<unset>}"
+          } | tee diagnostics/environment.log
       - name: Run fifteen consecutive complete cycles
         shell: bash
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          mkdir -p diagnostics
           for pass_number in $(seq 1 15); do
+            log_file="diagnostics/parent-pass-${pass_number}.log"
             echo "::group::PARENT PASS ${pass_number}/15 — Python ${{ matrix.python-version }}"
-            uv run pytest tests
-            uv run python -m the_well.research.metamorphosis.run_analytic_baseline
+            set +e
+            {
+              echo "PARENT PASS ${pass_number}/15"
+              echo "COMMAND: uv run pytest tests"
+              uv run pytest tests
+              pytest_status=$?
+              echo "PYTEST EXIT STATUS: ${pytest_status}"
+              if [ "${pytest_status}" -ne 0 ]; then
+                exit "${pytest_status}"
+              fi
+
+              echo "COMMAND: uv run python -m the_well.research.metamorphosis.run_analytic_baseline"
+              uv run python -m the_well.research.metamorphosis.run_analytic_baseline
+              analytic_status=$?
+              echo "ANALYTIC EXIT STATUS: ${analytic_status}"
+              exit "${analytic_status}"
+            } 2>&1 | tee "${log_file}"
+            cycle_status=${PIPESTATUS[0]}
+            set -e
             echo "::endgroup::"
+            if [ "${cycle_status}" -ne 0 ]; then
+              echo "PARENT RESULT — Python ${{ matrix.python-version }}: FAILED ON PASS ${pass_number}/15"
+              exit "${cycle_status}"
+            fi
           done
           echo "PARENT RESULT — Python ${{ matrix.python-version }}: 15/15 PASSED"
+      - name: Upload parent-suite diagnostics
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: parent-suite-diagnostics-python-${{ matrix.python-version }}
+          path: diagnostics/
+          if-no-files-found: error
+          retention-days: 14
 
   nasa-linux:
     name: NASA clean-package 15/15 — Linux
