@@ -1,0 +1,31 @@
+name: Workflow checkout authentication
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/**"
+      - "tests/test_workflow_checkout_credentials.py"
+  push:
+    branches: [master]
+    paths:
+      - ".github/workflows/**"
+      - "tests/test_workflow_checkout_credentials.py"
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: Verify non-persistent checkout authentication
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install test runner
+        run: python -m pip install --disable-pip-version-check pytest
+      - name: Verify every workflow checkout step
+        run: python -m pytest -q tests/test_workflow_checkout_credentials.py
