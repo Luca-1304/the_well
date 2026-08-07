@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Verification depth
+        description: "Structural checks use no NASA quota; full checks all public data families."
         required: true
         default: structural
         type: choice
@@ -24,21 +24,17 @@ concurrency:
 jobs:
   smoke:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SMOKE_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.mode || 'structural' }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/checkout@v7
         with:
-          node-version: 22
-      - name: Select verification mode
-        id: mode
-        shell: bash
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "value=${{ inputs.mode }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "value=structural" >> "$GITHUB_OUTPUT"
-          fi
+          persist-credentials: false
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
       - name: Verify production
-        run: node scripts/production-smoke.mjs --mode "${{ steps.mode.outputs.value }}"
+        run: node scripts/production-smoke.mjs --mode "$SMOKE_MODE"
