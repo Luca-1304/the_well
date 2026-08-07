@@ -12,16 +12,28 @@ jobs:
   test:
     name: Node 22 checks (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up Node.js 22
-        uses: actions/setup-node@v4
+        uses: actions/checkout@v7
         with:
-          node-version: 22
+          persist-credentials: false
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Validate Vercel configuration JSON
+        run: node -e "JSON.parse(require('node:fs').readFileSync('vercel.json', 'utf8'))"
       - name: Run source, security and regression checks
         run: npm run check
+      - name: Reject committed environment files
+        shell: bash
+        run: |
+          if git ls-files '.env*' | grep -v '^\.env\.example$'; then
+            echo 'A real environment file is tracked.' >&2
+            exit 1
+          fi
