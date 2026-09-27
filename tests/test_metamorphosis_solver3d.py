@@ -149,9 +149,7 @@ def test_twin_run_uses_same_initial_problem_but_control_only_in_controlled_lane(
 
 def test_run_manifest_changes_when_simulation_configuration_changes() -> None:
     baseline = PeriodicSpectralNavierStokes3D(short_config())
-    changed = PeriodicSpectralNavierStokes3D(
-        short_config(viscosity=6.0e-2)
-    )
+    changed = PeriodicSpectralNavierStokes3D(short_config(viscosity=6.0e-2))
 
     baseline_manifest = baseline.run_manifest(code_version="test")
     changed_manifest = changed.run_manifest(code_version="test")
