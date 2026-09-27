@@ -30,15 +30,19 @@ from .safety import (
     BoundaryState,
     OperationalMode,
     SafetyDecision,
+    RunManifest,
     SafetyThresholds,
+    ScalarInputRecord,
     ValidityGate,
     VerificationScales,
     VerificationState,
     confidence_from_risk,
+    configuration_fingerprint,
     detect_model_mismatch,
     evaluate_safety,
     require_validity,
     risk_from_verification,
+    validate_input_records,
 )
 
 
@@ -73,6 +77,12 @@ class SpectralSimulationConfig:
         )
     )
     environment_sign: float = 1.0
+    environment_component_weights: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    controller_sign: float = 1.0
+    sensor_vorticity_scale: float = 1.0
+    watchdog_divergence_limit: float = 1.0e-6
+    watchdog_energy_residual_limit: float = 1.0
+    watchdog_min_scalar_mass_fidelity: float = 0.95
     base_uncertainty: float = 0.0
     observation_mismatch: float = 0.0
     domain_distance: float = 0.0
@@ -114,6 +124,38 @@ class SpectralSimulationConfig:
             raise ValueError("max_steps must be positive")
         if self.environment_sign not in (-1.0, 1.0):
             raise ValueError("environment_sign must be either -1 or 1")
+        if self.controller_sign not in (-1.0, 1.0):
+            raise ValueError("controller_sign must be either -1 or 1")
+        if (
+            len(self.environment_component_weights) != 3
+            or any(
+                not math.isfinite(value)
+                for value in self.environment_component_weights
+            )
+        ):
+            raise ValueError(
+                "environment_component_weights must contain three finite values"
+            )
+        if self.sensor_vorticity_scale <= 0 or not math.isfinite(
+            self.sensor_vorticity_scale
+        ):
+            raise ValueError("sensor_vorticity_scale must be finite and positive")
+        if self.watchdog_divergence_limit <= 0 or not math.isfinite(
+            self.watchdog_divergence_limit
+        ):
+            raise ValueError(
+                "watchdog_divergence_limit must be finite and positive"
+            )
+        if self.watchdog_energy_residual_limit <= 0 or not math.isfinite(
+            self.watchdog_energy_residual_limit
+        ):
+            raise ValueError(
+                "watchdog_energy_residual_limit must be finite and positive"
+            )
+        if not 0.0 <= self.watchdog_min_scalar_mass_fidelity <= 1.0:
+            raise ValueError(
+                "watchdog_min_scalar_mass_fidelity must lie between 0 and 1"
+            )
         for name, value in {
             "base_uncertainty": self.base_uncertainty,
             "observation_mismatch": self.observation_mismatch,
@@ -159,6 +201,14 @@ class SimulationRecord:
     containment_failed: bool
     environmental_influence: float
     control_effort: float
+    environmental_power: float
+    control_power: float
+    viscous_energy_dissipation: float
+    energy_power_dominance_ratio: float
+    accumulated_overpowering_energy_fraction: float
+    enstrophy_dominance_ratio: float
+    watchdog_triggered: bool
+    watchdog_reasons: tuple[str, ...]
     safety_mode: str
     authority_scale: float
     confidence: float
@@ -173,6 +223,7 @@ class SpectralState:
     time: float = 0.0
     step: int = 0
     authority_scale: float = 1.0
+    accumulated_overpowering_energy: float = 0.0
 
 
 class PeriodicSpectralNavierStokes3D:
