@@ -643,7 +643,6 @@ class PeriodicSpectralNavierStokes3D:
             + force_hat
         )
 
-        scalar = torch.fft.ifftn(scalar_hat, dim=(0, 1, 2)).real
         scalar_gradients = []
         for wave_number in (self.kx, self.ky, self.kz):
             gradient_hat = 1j * wave_number * scalar_hat
@@ -1072,15 +1071,11 @@ class PeriodicSpectralNavierStokes3D:
             viscosity=self.config.viscosity,
             density=self.config.density,
         )
-        total_enstrophy, stretching_production, viscous_dissipation = (
-            enstrophy_balance_integrals(
-                accepted_velocity,
-                self.spacing,
-                self.config.viscosity,
-            )
-        )
-        stretching_production_value = float(stretching_production.detach().cpu())
-        viscous_enstrophy_dissipation = float(viscous_dissipation.detach().cpu())
+        (
+            total_enstrophy,
+            stretching_production_value,
+            viscous_enstrophy_dissipation,
+        ) = self.spectral_enstrophy_balance(accepted_velocity_hat)
 
         restoring_power = viscous_energy_dissipation + max(-control_power, 0.0)
         if restoring_power == 0.0:
