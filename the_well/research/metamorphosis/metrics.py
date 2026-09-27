@@ -205,6 +205,7 @@ def compute_metrics(
         viscous_redistribution_rate=float(diffusion_norm.detach().cpu()),
     )
 
+
 def enstrophy(
     omega: Tensor,
     *,
