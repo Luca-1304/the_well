@@ -526,11 +526,20 @@ class PeriodicSpectralNavierStokes3D:
         )
         scale = 2.0 * math.pi / self.config.domain_length
         weights = self.config.environment_component_weights
+        phase_x = scale * self.x
+        phase_y = scale * self.y
+        phase_z = scale * self.z
         return amplitude * torch.stack(
             (
-                weights[0] * torch.sin(scale * self.y),
-                weights[1] * torch.sin(scale * self.z),
-                weights[2] * torch.sin(scale * self.x),
+                weights[0]
+                * torch.sin(phase_x)
+                * torch.cos(phase_y)
+                * torch.cos(phase_z),
+                -weights[1]
+                * torch.cos(phase_x)
+                * torch.sin(phase_y)
+                * torch.cos(phase_z),
+                weights[2] * torch.sin(phase_x) * torch.sin(phase_y),
             ),
             dim=-1,
         )
@@ -551,6 +560,12 @@ class PeriodicSpectralNavierStokes3D:
                 environmental_strength=boundary.environmental_strength,
             )
         return boundary
+
+    def project_physical_vector(self, field: Tensor) -> Tensor:
+        projected_hat = self.project_velocity_hat(
+            self._apply_dealias(self._fft_vector(field))
+        )
+        return self._ifft_vector(projected_hat)
 
     def _forces(
         self,
@@ -778,9 +793,12 @@ class PeriodicSpectralNavierStokes3D:
         float,
     ]:
         new_velocity = self._ifft_vector(new_velocity_hat)
-        total_force, control, environmental, boundary = self._forces(
+        _, control, environmental, boundary = self._forces(
             new_velocity, new_velocity_hat, authority_scale
         )
+        applied_control = self.project_physical_vector(control)
+        applied_environmental = self.project_physical_vector(environmental)
+        total_force = applied_control + applied_environmental
 
         new_energy = float(
             kinetic_energy(
@@ -803,8 +821,8 @@ class PeriodicSpectralNavierStokes3D:
                 .cpu()
             )
 
-        environmental_power = power_from_force(environmental)
-        control_power = power_from_force(control)
+        environmental_power = power_from_force(applied_environmental)
+        control_power = power_from_force(applied_control)
         total_power = power_from_force(total_force)
         dissipation = self._gradient_dissipation(new_velocity_hat)
         energy_scale = max(
@@ -883,7 +901,7 @@ class PeriodicSpectralNavierStokes3D:
             new_energy,
             scalar_mass_fidelity,
             tail_fraction,
-            self._control_effort(control),
+            self._control_effort(applied_control),
             boundary,
             operator_discrepancy,
             environmental_power,
