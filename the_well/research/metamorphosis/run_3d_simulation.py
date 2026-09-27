@@ -123,6 +123,13 @@ def main() -> None:
     parser.add_argument("--environment-weight-x", type=float, default=1.0)
     parser.add_argument("--environment-weight-y", type=float, default=1.0)
     parser.add_argument("--environment-weight-z", type=float, default=1.0)
+    parser.add_argument("--environment-feedback-gain", type=float, default=0.0)
+    parser.add_argument(
+        "--max-environment-amplification", type=float, default=10.0
+    )
+    parser.add_argument(
+        "--environment-disturbance-time", type=float, default=1.0
+    )
     parser.add_argument("--safe-vorticity", type=float, default=1.0)
     parser.add_argument("--controller-gain", type=float, default=0.1)
     parser.add_argument("--max-control-force", type=float, default=1.0)
@@ -169,6 +176,9 @@ def main() -> None:
             args.environment_weight_y,
             args.environment_weight_z,
         ),
+        environment_feedback_gain=args.environment_feedback_gain,
+        max_environment_amplification=args.max_environment_amplification,
+        environment_disturbance_time=args.environment_disturbance_time,
         controller=controller,
         controller_sign=args.controller_sign,
         controller_delay_steps=args.controller_delay_steps,
