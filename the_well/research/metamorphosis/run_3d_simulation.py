@@ -7,6 +7,7 @@ import json
 from dataclasses import asdict, replace
 
 from .controller import ControllerConfig
+from .cross_validation import compare_uncontrolled_solvers
 from .safety import BoundaryMode, BoundaryState
 from .solver3d import PeriodicSpectralNavierStokes3D, SpectralSimulationConfig
 
@@ -57,6 +58,8 @@ def summarise(records: list[object]) -> dict[str, object]:
 
 def run_twin_experiment(
     config: SpectralSimulationConfig,
+    *,
+    cross_validate: bool = False,
 ) -> dict[str, object]:
     uncontrolled_config = replace(config, controller_enabled=False)
     controlled_config = replace(config, controller_enabled=True)
@@ -68,7 +71,7 @@ def run_twin_experiment(
         controlled_config
     ).run()
 
-    return {
+    result: dict[str, object] = {
         "uncontrolled": summarise(uncontrolled_records),
         "controlled": summarise(controlled_records),
         "claims_boundary": (
@@ -76,6 +79,9 @@ def run_twin_experiment(
             "Navier-Stokes regularity or singularity."
         ),
     }
+    if cross_validate:
+        result["cross_validation"] = asdict(compare_uncontrolled_solvers(config))
+    return result
 
 
 def main() -> None:
@@ -100,6 +106,7 @@ def main() -> None:
     parser.add_argument("--max-control-force", type=float, default=1.0)
     parser.add_argument("--observation-mismatch", type=float, default=0.0)
     parser.add_argument("--base-uncertainty", type=float, default=0.0)
+    parser.add_argument("--skip-cross-validation", action="store_true")
     args = parser.parse_args()
 
     boundary = build_boundary(
@@ -126,7 +133,15 @@ def main() -> None:
         observation_mismatch=args.observation_mismatch,
         base_uncertainty=args.base_uncertainty,
     )
-    print(json.dumps(run_twin_experiment(config), indent=2))
+    print(
+        json.dumps(
+            run_twin_experiment(
+                config,
+                cross_validate=not args.skip_cross_validation,
+            ),
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
