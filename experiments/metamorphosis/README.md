@@ -140,15 +140,18 @@ Implemented:
 - purpose-relative preservation classes and marked-scalar mass/overlap metrics;
 - a bounded vorticity-weighted damping baseline;
 - an analytic 2D Taylor–Green verification runner;
-- analytic tests for the PDE residuals and diagnostic operators.
+- a 3D periodic Fourier-pseudospectral Navier–Stokes solver with Leray projection, 2/3 de-aliasing, RK4 and step-doubling;
+- passive-scalar transport in the 3D time loop;
+- live 0→1→2→3→4 safety decisions inside each accepted 3D step;
+- uncontrolled/controlled twin-run support from the same initial state;
+- a distinct second-order finite-difference + RK2 projection solver for short-horizon cross-validation;
+- analytic and adversarial tests for the PDE residuals, diagnostics, safety shell and 3D solver.
 
 Not implemented yet:
 
-- a conventional time-stepping Navier–Stokes solver for the controlled run;
 - a The Well dataset adapter;
-- genuine boundary, pressure, thermal, or counter-vorticity redistribution controllers;
-- the first 3D vortex-stretching experiment;
-- a PINN model and independent model comparison;
+- literal-wall boundary mechanics and genuine pressure, thermal, or counter-vorticity redistribution controllers;
+- a PINN model and The Well comparison;
 - optical, MHD, and adaptive switching extensions.
 
 ## Experiment ladder
@@ -156,9 +159,9 @@ Not implemented yet:
 0. Verify differential operators against analytic solutions.
 1. Run the 2D Taylor–Green baseline as an infrastructure test.
 2. Track a marked passive scalar and define measurable preservation proxies.
-3. Add a conventional numerical solver and compare uncontrolled flow with the damping baseline.
-4. Move immediately to a 3D periodic vortex case where vortex stretching is non-zero.
-5. Derive and compare stretching and redistribution directly from the vorticity equation.
+3. Run the conventional 3D numerical solver and compare uncontrolled flow with the damping baseline.
+4. Cross-check the 3D periodic vortex case against the independent finite-difference/RK2 path.
+5. Derive and compare stretching and redistribution directly from the vorticity and enstrophy equations.
 6. Add exterior-temperature coupling and temperature-dependent material properties.
 7. Test boundary, pressure, counter-vorticity, and thermal controls separately.
 8. Compare conventional numerical results, The Well data, and a PINN.
@@ -214,3 +217,23 @@ Safety additions include:
 
 The safety layer is a credibility and containment mechanism, not evidence of
 global regularity and not a substitute for an independent solver.
+
+
+## Running the 3D safety-integrated experiment
+
+From the repository root:
+
+```bash
+python -m the_well.research.metamorphosis.run_3d_simulation
+pytest tests/test_metamorphosis_solver3d.py
+pytest tests/test_metamorphosis_cross_validation.py
+```
+
+The default 3D runner executes uncontrolled and controlled Taylor–Green lanes
+from the same initial state and, unless explicitly skipped, also runs the
+finite-difference/RK2 cross-validation path.
+
+The periodic solver has no literal solid wall. Its closed/weak/open
+containment modes are an explicit environment-coupling abstraction. Physical
+wall deformation or fracture must be tested in a separate boundary-mechanics
+solver before making claims about real containment failure.
