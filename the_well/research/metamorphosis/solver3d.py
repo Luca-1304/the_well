@@ -20,11 +20,7 @@ import torch
 from torch import Tensor
 
 from .controller import ControllerConfig, vorticity_weighted_damping_force
-from .metrics import (
-    compute_metrics,
-    enstrophy_balance_integrals,
-    kinetic_energy,
-)
+from .metrics import compute_metrics, kinetic_energy
 from .safety import (
     BoundaryMode,
     BoundaryState,
@@ -740,6 +736,62 @@ class PeriodicSpectralNavierStokes3D:
             return 0.0
         return float((energy[shell].sum() / total).detach().cpu())
 
+    def spectral_enstrophy_balance(
+        self,
+        velocity_hat: Tensor,
+    ) -> tuple[float, float, float]:
+        """Return Z, stretching production, and viscous enstrophy dissipation.
+
+        All spatial derivatives use the same Fourier representation as the
+        primary time-stepper, so this is the native periodic balance diagnostic.
+        """
+        velocity_hat = self.project_velocity_hat(
+            self._apply_dealias(velocity_hat)
+        )
+        omega = self.spectral_vorticity(velocity_hat)
+        velocity_gradients = self._velocity_gradients(velocity_hat)
+        stretching = torch.stack(
+            tuple(
+                sum(
+                    omega[..., axis] * velocity_gradients[component][axis]
+                    for axis in range(3)
+                )
+                for component in range(3)
+            ),
+            dim=-1,
+        )
+        cell_volume = self.dx**3
+        total_enstrophy = 0.5 * float(
+            ((omega * omega).sum(dim=-1).sum() * cell_volume)
+            .detach()
+            .cpu()
+        )
+        stretching_production = float(
+            ((omega * stretching).sum(dim=-1).sum() * cell_volume)
+            .detach()
+            .cpu()
+        )
+
+        omega_hat = self._fft_vector(omega)
+        gradient_squared = torch.zeros_like(omega[..., 0])
+        for component in range(3):
+            for wave_number in (self.kx, self.ky, self.kz):
+                derivative = torch.fft.ifftn(
+                    1j * wave_number * omega_hat[..., component],
+                    dim=(0, 1, 2),
+                ).real
+                gradient_squared = gradient_squared + derivative * derivative
+        viscous_dissipation = float(
+            (
+                self.config.viscosity
+                * gradient_squared.sum()
+                * cell_volume
+            )
+            .detach()
+            .cpu()
+        )
+        return total_enstrophy, stretching_production, viscous_dissipation
+
     def _gradient_dissipation(self, velocity_hat: Tensor) -> float:
         gradients = self._velocity_gradients(velocity_hat)
         squared = torch.zeros_like(gradients[0][0])
@@ -1108,7 +1160,7 @@ class PeriodicSpectralNavierStokes3D:
             max_velocity_gradient=continuation.max_velocity_gradient,
             max_vorticity=continuation.max_vorticity,
             kinetic_energy=new_energy,
-            enstrophy=float(total_enstrophy.detach().cpu()),
+            enstrophy=total_enstrophy,
             stretching_production=stretching_production_value,
             viscous_enstrophy_dissipation=viscous_enstrophy_dissipation,
             vortex_stretching_rate=continuation.vortex_stretching_rate,
