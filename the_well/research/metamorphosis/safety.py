@@ -468,13 +468,9 @@ def overpowering_metrics(
         dominance_ratio = effective_disturbance / restoring
 
     if math.isinf(dominance_ratio):
-        accumulated_exceedance = (
-            float("inf") if exceedance_duration > 0.0 else 0.0
-        )
+        accumulated_exceedance = float("inf") if exceedance_duration > 0.0 else 0.0
     else:
-        accumulated_exceedance = (
-            max(dominance_ratio - 1.0, 0.0) * exceedance_duration
-        )
+        accumulated_exceedance = max(dominance_ratio - 1.0, 0.0) * exceedance_duration
     timescale_ratio = response_time / disturbance_time
     return OverpoweringMetrics(
         dominance_ratio=dominance_ratio,
