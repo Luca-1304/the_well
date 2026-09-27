@@ -19,6 +19,7 @@ def build_boundary(
     permeability: float,
     coupling: float,
     environmental_strength: float,
+    breachable: bool = True,
 ) -> BoundaryState:
     if mode is BoundaryMode.CLOSED_STRONG:
         permeability = 0.0
@@ -29,6 +30,7 @@ def build_boundary(
         permeability=permeability,
         coupling=coupling,
         environmental_strength=environmental_strength,
+        breachable=breachable,
     )
 
 
@@ -42,6 +44,16 @@ def summarise(records: list[object]) -> dict[str, object]:
     peak_stretching = max(record.vortex_stretching_rate for record in records)
     minimum_mass_fidelity = min(record.scalar_mass_fidelity for record in records)
     maximum_control_effort = max(record.control_effort for record in records)
+    maximum_risk = max(record.maximum_risk for record in records)
+    maximum_energy_dominance = max(
+        record.energy_power_dominance_ratio for record in records
+    )
+    maximum_enstrophy_dominance = max(
+        record.enstrophy_dominance_ratio for record in records
+    )
+    maximum_overpowering_fraction = max(
+        record.accumulated_overpowering_energy_fraction for record in records
+    )
     return {
         "steps": len(records),
         "final": asdict(last),
@@ -50,6 +62,13 @@ def summarise(records: list[object]) -> dict[str, object]:
         "peak_vortex_stretching_rate": peak_stretching,
         "minimum_scalar_mass_fidelity": minimum_mass_fidelity,
         "maximum_control_effort": maximum_control_effort,
+        "maximum_risk": maximum_risk,
+        "maximum_energy_power_dominance_ratio": maximum_energy_dominance,
+        "maximum_enstrophy_dominance_ratio": maximum_enstrophy_dominance,
+        "maximum_accumulated_overpowering_energy_fraction": (
+            maximum_overpowering_fraction
+        ),
+        "watchdog_triggered": any(record.watchdog_triggered for record in records),
         "all_predictions_trusted": all(record.trusted_prediction for record in records),
     }
 
@@ -62,10 +81,13 @@ def run_twin_experiment(
     uncontrolled_config = replace(config, controller_enabled=False)
     controlled_config = replace(config, controller_enabled=True)
 
-    _, uncontrolled_records = PeriodicSpectralNavierStokes3D(uncontrolled_config).run()
-    _, controlled_records = PeriodicSpectralNavierStokes3D(controlled_config).run()
+    uncontrolled_solver = PeriodicSpectralNavierStokes3D(uncontrolled_config)
+    controlled_solver = PeriodicSpectralNavierStokes3D(controlled_config)
+    _, uncontrolled_records = uncontrolled_solver.run()
+    _, controlled_records = controlled_solver.run()
 
     result: dict[str, object] = {
+        "manifest": asdict(controlled_solver.run_manifest()),
         "uncontrolled": summarise(uncontrolled_records),
         "controlled": summarise(controlled_records),
         "claims_boundary": (
@@ -94,12 +116,28 @@ def main() -> None:
     parser.add_argument("--permeability", type=float, default=0.5)
     parser.add_argument("--coupling", type=float, default=1.0)
     parser.add_argument("--environmental-strength", type=float, default=0.0)
+    parser.add_argument("--unbreakable-containment", action="store_true")
     parser.add_argument(
         "--environment-sign", type=float, choices=(-1.0, 1.0), default=1.0
     )
+    parser.add_argument("--environment-weight-x", type=float, default=1.0)
+    parser.add_argument("--environment-weight-y", type=float, default=1.0)
+    parser.add_argument("--environment-weight-z", type=float, default=1.0)
     parser.add_argument("--safe-vorticity", type=float, default=1.0)
     parser.add_argument("--controller-gain", type=float, default=0.1)
     parser.add_argument("--max-control-force", type=float, default=1.0)
+    parser.add_argument(
+        "--controller-sign", type=float, choices=(-1.0, 1.0), default=1.0
+    )
+    parser.add_argument("--controller-delay-steps", type=int, default=0)
+    parser.add_argument("--sensor-vorticity-scale", type=float, default=1.0)
+    parser.add_argument("--watchdog-divergence-limit", type=float, default=1.0e-6)
+    parser.add_argument(
+        "--watchdog-energy-residual-limit", type=float, default=1.0
+    )
+    parser.add_argument(
+        "--watchdog-min-scalar-mass-fidelity", type=float, default=0.95
+    )
     parser.add_argument("--observation-mismatch", type=float, default=0.0)
     parser.add_argument("--base-uncertainty", type=float, default=0.0)
     parser.add_argument("--skip-cross-validation", action="store_true")
@@ -111,6 +149,7 @@ def main() -> None:
         permeability=args.permeability,
         coupling=args.coupling,
         environmental_strength=args.environmental_strength,
+        breachable=not args.unbreakable_containment,
     )
     controller = ControllerConfig(
         safe_vorticity=args.safe_vorticity,
@@ -125,7 +164,20 @@ def main() -> None:
         final_time=args.final_time,
         boundary=boundary,
         environment_sign=args.environment_sign,
+        environment_component_weights=(
+            args.environment_weight_x,
+            args.environment_weight_y,
+            args.environment_weight_z,
+        ),
         controller=controller,
+        controller_sign=args.controller_sign,
+        controller_delay_steps=args.controller_delay_steps,
+        sensor_vorticity_scale=args.sensor_vorticity_scale,
+        watchdog_divergence_limit=args.watchdog_divergence_limit,
+        watchdog_energy_residual_limit=args.watchdog_energy_residual_limit,
+        watchdog_min_scalar_mass_fidelity=(
+            args.watchdog_min_scalar_mass_fidelity
+        ),
         observation_mismatch=args.observation_mismatch,
         base_uncertainty=args.base_uncertainty,
     )
