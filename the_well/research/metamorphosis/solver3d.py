@@ -148,9 +148,7 @@ class SpectralSimulationConfig:
         if self.environment_disturbance_time <= 0 or not math.isfinite(
             self.environment_disturbance_time
         ):
-            raise ValueError(
-                "environment_disturbance_time must be finite and positive"
-            )
+            raise ValueError("environment_disturbance_time must be finite and positive")
         if self.sensor_vorticity_scale <= 0 or not math.isfinite(
             self.sensor_vorticity_scale
         ):
@@ -1081,7 +1079,11 @@ class PeriodicSpectralNavierStokes3D:
         power_external_risk = positive_environmental_power / (
             positive_environmental_power + viscous_energy_dissipation + 1.0e-12
         )
-        containment_risk = boundary.load / (boundary.load + boundary.capacity)
+        containment_risk = (
+            boundary.load / (boundary.load + boundary.capacity)
+            if boundary.breachable
+            else 0.0
+        )
         dynamic_external_risk = max(
             self.config.external_risk,
             power_external_risk,
@@ -1144,7 +1146,8 @@ class PeriodicSpectralNavierStokes3D:
                 available_control_force / environmental_force_linf
             )
         response_timescale_ratio = (
-            (self.config.controller_delay_steps + 1) * dt
+            (self.config.controller_delay_steps + 1)
+            * dt
             / self.config.environment_disturbance_time
         )
         containment_margin_fraction = (
@@ -1255,9 +1258,7 @@ class PeriodicSpectralNavierStokes3D:
             environmental_power=environmental_power,
             environment_cascade_amplification=cascade_amplification,
             response_timescale_ratio=response_timescale_ratio,
-            actuator_to_environment_force_ratio=(
-                actuator_to_environment_force_ratio
-            ),
+            actuator_to_environment_force_ratio=(actuator_to_environment_force_ratio),
             containment_margin_fraction=containment_margin_fraction,
             control_power=control_power,
             viscous_energy_dissipation=viscous_energy_dissipation,
