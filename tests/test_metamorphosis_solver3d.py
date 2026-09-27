@@ -281,3 +281,70 @@ def test_controller_delay_is_applied_inside_simulation_loop() -> None:
     assert len(records) >= 2
     assert records[0].control_effort == 0.0
     assert records[1].control_effort > 0.0
+
+
+def test_live_environment_feedback_amplifies_only_when_enabled() -> None:
+    boundary = BoundaryState(
+        mode=BoundaryMode.OPEN,
+        load=0.0,
+        capacity=1.0e-3,
+        permeability=1.0,
+        coupling=1.0,
+        environmental_strength=0.2,
+    )
+    baseline = PeriodicSpectralNavierStokes3D(
+        short_config(
+            boundary=boundary,
+            environment_feedback_gain=0.0,
+            final_time=1.0e-3,
+        )
+    )
+    amplified = PeriodicSpectralNavierStokes3D(
+        short_config(
+            boundary=boundary,
+            environment_feedback_gain=2.0,
+            max_environment_amplification=5.0,
+            final_time=1.0e-3,
+        )
+    )
+
+    _, baseline_records = baseline.run()
+    _, amplified_records = amplified.run()
+
+    assert baseline_records[0].environment_cascade_amplification == 1.0
+    assert amplified_records[0].environment_cascade_amplification > 1.0
+    assert (
+        amplified_records[0].environment_cascade_amplification
+        <= amplified.config.max_environment_amplification
+    )
+
+
+def test_response_timescale_and_actuator_margin_are_recorded_live() -> None:
+    boundary = BoundaryState(
+        mode=BoundaryMode.OPEN,
+        load=0.0,
+        capacity=10.0,
+        permeability=1.0,
+        coupling=1.0,
+        environmental_strength=0.1,
+    )
+    solver = PeriodicSpectralNavierStokes3D(
+        short_config(
+            boundary=boundary,
+            controller_enabled=True,
+            controller_delay_steps=2,
+            environment_disturbance_time=1.0e-2,
+            final_time=1.0e-3,
+            controller=ControllerConfig(
+                safe_vorticity=0.1,
+                proportional_gain=0.2,
+                max_control_force=0.5,
+            ),
+        )
+    )
+    _, records = solver.run()
+
+    first = records[0]
+    assert first.response_timescale_ratio > 0.0
+    assert math.isfinite(first.actuator_to_environment_force_ratio)
+    assert first.containment_margin_fraction > 0.0
