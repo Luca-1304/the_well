@@ -246,7 +246,9 @@ def enstrophy_balance_integrals(
     total_enstrophy = enstrophy(omega, cell_volume=cell_volume)
 
     if velocity.ndim - 1 == 2:
-        stretching_production = torch.zeros((), dtype=velocity.dtype, device=velocity.device)
+        stretching_production = torch.zeros(
+            (), dtype=velocity.dtype, device=velocity.device
+        )
         gradients = torch.gradient(
             omega,
             spacing=spacing,
@@ -254,9 +256,7 @@ def enstrophy_balance_integrals(
         )
         gradient_squared = sum(gradient * gradient for gradient in gradients)
     else:
-        stretching_production = (
-            (omega * stretching).sum(dim=-1).sum() * cell_volume
-        )
+        stretching_production = (omega * stretching).sum(dim=-1).sum() * cell_volume
         gradient_squared = torch.zeros_like(omega[..., 0])
         axes = tuple(range(len(spacing)))
         for component in range(omega.shape[-1]):
