@@ -235,18 +235,24 @@ class PeriodicSpectralNavierStokes3D:
     def taylor_green_initial_velocity(self, amplitude: float = 1.0) -> Tensor:
         if not math.isfinite(amplitude):
             raise ValueError("amplitude must be finite")
-        u = amplitude * torch.sin(self.x) * torch.cos(self.y) * torch.cos(self.z)
-        v = -amplitude * torch.cos(self.x) * torch.sin(self.y) * torch.cos(self.z)
+        scale = 2.0 * math.pi / self.config.domain_length
+        phase_x = scale * self.x
+        phase_y = scale * self.y
+        phase_z = scale * self.z
+        u = amplitude * torch.sin(phase_x) * torch.cos(phase_y) * torch.cos(phase_z)
+        v = -amplitude * torch.cos(phase_x) * torch.sin(phase_y) * torch.cos(phase_z)
         w = torch.zeros_like(u)
         return torch.stack((u, v, w), dim=-1)
 
     def centred_marked_scalar(self, width: float = 0.6) -> Tensor:
         if width <= 0 or not math.isfinite(width):
             raise ValueError("width must be finite and positive")
-        centre = self.config.domain_length / 2.0
-        dx = torch.remainder(self.x - centre + math.pi, 2.0 * math.pi) - math.pi
-        dy = torch.remainder(self.y - centre + math.pi, 2.0 * math.pi) - math.pi
-        dz = torch.remainder(self.z - centre + math.pi, 2.0 * math.pi) - math.pi
+        length = self.config.domain_length
+        centre = length / 2.0
+        half_length = length / 2.0
+        dx = torch.remainder(self.x - centre + half_length, length) - half_length
+        dy = torch.remainder(self.y - centre + half_length, length) - half_length
+        dz = torch.remainder(self.z - centre + half_length, length) - half_length
         radius_squared = dx**2 + dy**2 + dz**2
         return torch.exp(-radius_squared / (2.0 * width**2))
 
@@ -265,7 +271,36 @@ class PeriodicSpectralNavierStokes3D:
         return SpectralState(
             velocity_hat=velocity_hat,
             scalar_hat=scalar_hat,
+            authority_scale=self.initial_authority_scale(),
         )
+
+    def initial_authority_scale(self) -> float:
+        preflight = VerificationState(
+            pde_residual=0.0,
+            divergence_residual=0.0,
+            energy_residual=0.0,
+            solver_discrepancy=0.0,
+            convergence_error=0.0,
+            observation_mismatch=self.config.observation_mismatch,
+            uncertainty=self.config.base_uncertainty,
+            domain_distance=self.config.domain_distance,
+        )
+        risk = risk_from_verification(
+            preflight,
+            self.config.verification_scales,
+            control_risk=self.config.control_risk,
+            external_risk=self.config.external_risk,
+        )
+        mismatch = detect_model_mismatch(
+            preflight,
+            self.config.verification_scales,
+            threshold=self.config.mismatch_threshold,
+        )
+        return evaluate_safety(
+            risk,
+            thresholds=self.config.safety_thresholds,
+            model_mismatch=mismatch,
+        ).authority_scale
 
     def _fft_vector(self, field: Tensor) -> Tensor:
         return torch.fft.fftn(field, dim=(0, 1, 2))
@@ -334,11 +369,12 @@ class PeriodicSpectralNavierStokes3D:
         amplitude = (
             self.config.environment_sign * boundary.environmental_influence
         )
+        scale = 2.0 * math.pi / self.config.domain_length
         return amplitude * torch.stack(
             (
-                torch.sin(self.y),
-                torch.sin(self.z),
-                torch.sin(self.x),
+                torch.sin(scale * self.y),
+                torch.sin(scale * self.z),
+                torch.sin(scale * self.x),
             ),
             dim=-1,
         )
