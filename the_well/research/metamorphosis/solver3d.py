@@ -802,6 +802,7 @@ class PeriodicSpectralNavierStokes3D:
         authority_scale: float,
         old_energy: float,
         initial_scalar_mass: float,
+        control_override: Tensor | None = None,
     ) -> tuple[
         VerificationState,
         float,
@@ -816,7 +817,10 @@ class PeriodicSpectralNavierStokes3D:
     ]:
         new_velocity = self._ifft_vector(new_velocity_hat)
         _, control, environmental, boundary = self._forces(
-            new_velocity, new_velocity_hat, authority_scale
+            new_velocity,
+            new_velocity_hat,
+            authority_scale,
+            control_override=control_override,
         )
         applied_control = self.project_physical_vector(control)
         applied_environmental = self.project_physical_vector(environmental)
@@ -860,11 +864,13 @@ class PeriodicSpectralNavierStokes3D:
             old_velocity_hat,
             old_scalar_hat,
             authority_scale,
+            control_override=control_override,
         )
         rhs_new, _ = self._rhs(
             new_velocity_hat,
             new_scalar_hat,
             authority_scale,
+            control_override=control_override,
         )
         finite_difference = (new_velocity_hat - old_velocity_hat) / dt
         trapezoid_rhs = 0.5 * (rhs_old + rhs_new)
@@ -937,6 +943,7 @@ class PeriodicSpectralNavierStokes3D:
         *,
         initial_scalar_mass: float,
         initial_energy: float,
+        control_override: Tensor | None = None,
     ) -> tuple[SpectralState, SimulationRecord]:
         remaining = self.config.final_time - state.time
         if remaining <= 0:
@@ -961,18 +968,21 @@ class PeriodicSpectralNavierStokes3D:
             state.scalar_hat,
             dt,
             state.authority_scale,
+            control_override=control_override,
         )
         half_velocity_hat, half_scalar_hat = self._rk4(
             state.velocity_hat,
             state.scalar_hat,
             0.5 * dt,
             state.authority_scale,
+            control_override=control_override,
         )
         accepted_velocity_hat, accepted_scalar_hat = self._rk4(
             half_velocity_hat,
             half_scalar_hat,
             0.5 * dt,
             state.authority_scale,
+            control_override=control_override,
         )
 
         (
@@ -996,6 +1006,7 @@ class PeriodicSpectralNavierStokes3D:
             state.authority_scale,
             old_energy,
             initial_scalar_mass,
+            control_override=control_override,
         )
 
         positive_environmental_power = max(environmental_power, 0.0)
@@ -1194,16 +1205,46 @@ class PeriodicSpectralNavierStokes3D:
             .cpu()
         )
         records: list[SimulationRecord] = []
+        velocity_history: list[Tensor] = [state.velocity_hat.detach().clone()]
 
         while state.time < self.config.final_time:
             if state.step >= self.config.max_steps:
                 raise RuntimeError("max_steps reached before final_time")
+            control_override: Tensor | None = None
+            if (
+                self.config.controller_enabled
+                and self.config.controller_delay_steps > 0
+            ):
+                if len(velocity_history) <= self.config.controller_delay_steps:
+                    delayed_velocity = self._ifft_vector(state.velocity_hat)
+                    control_override = torch.zeros_like(delayed_velocity)
+                else:
+                    delayed_hat = velocity_history[
+                        -1 - self.config.controller_delay_steps
+                    ]
+                    delayed_velocity = self._ifft_vector(delayed_hat)
+                    delayed_omega = (
+                        self.config.sensor_vorticity_scale
+                        * self.spectral_vorticity(delayed_hat)
+                    )
+                    control_override = (
+                        self.config.controller_sign
+                        * vorticity_weighted_damping_force(
+                            delayed_velocity,
+                            delayed_omega,
+                            self.config.controller,
+                            authority_scale=state.authority_scale,
+                        )
+                    )
+
             state, record = self.step(
                 state,
                 initial_scalar_mass=initial_scalar_mass,
                 initial_energy=initial_energy,
+                control_override=control_override,
             )
             records.append(record)
+            velocity_history.append(state.velocity_hat.detach().clone())
 
             if record.safety_mode == OperationalMode.ISOLATE.value:
                 break
