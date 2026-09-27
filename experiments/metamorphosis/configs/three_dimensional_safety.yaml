@@ -60,6 +60,7 @@ containment_environment:
     a separate boundary-mechanics solver.
   initial_mode: closed_strong
   capacity: 10.0
+  breachable: true
   permeability: 0.0
   coupling: 1.0
   environmental_strength: 0.0
@@ -88,6 +89,12 @@ live_verification:
     - observation_mismatch
     - uncertainty
     - validated_domain_distance
+    - physics_risk
+    - numerical_risk
+    - uncertainty_risk
+    - control_risk
+    - external_risk
+    - mismatch_risk
 
 physics_metrics:
   track:
