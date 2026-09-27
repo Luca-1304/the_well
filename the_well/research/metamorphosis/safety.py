@@ -153,6 +153,7 @@ class BoundaryState:
     permeability: float
     coupling: float
     environmental_strength: float
+    breachable: bool = True
 
     def __post_init__(self) -> None:
         if self.load < 0 or not math.isfinite(self.load):
@@ -176,7 +177,7 @@ class BoundaryState:
 
     @property
     def containment_failed(self) -> bool:
-        return self.load >= self.capacity
+        return self.breachable and self.load >= self.capacity
 
     @property
     def environmental_influence(self) -> float:
