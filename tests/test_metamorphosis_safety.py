@@ -209,6 +209,7 @@ def test_safety_authority_can_zero_or_reduce_controller_output() -> None:
     restricted_max = torch.linalg.vector_norm(restricted, dim=-1).amax().item()
     assert full_max <= 1.0 + 1.0e-12
     assert restricted_max <= 0.25 + 1.0e-12
+    assert restricted_max == pytest.approx(0.25 * full_max)
     assert torch.count_nonzero(isolated).item() == 0
 
 
