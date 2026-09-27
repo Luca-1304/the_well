@@ -225,6 +225,7 @@ From the repository root:
 
 ```bash
 python -m the_well.research.metamorphosis.run_3d_simulation
+python -m the_well.research.metamorphosis.run_3d_verification
 pytest tests/test_metamorphosis_solver3d.py
 pytest tests/test_metamorphosis_cross_validation.py
 ```
@@ -237,3 +238,25 @@ The periodic solver has no literal solid wall. Its closed/weak/open
 containment modes are an explicit environment-coupling abstraction. Physical
 wall deformation or fracture must be tested in a separate boundary-mechanics
 solver before making claims about real containment failure.
+
+
+### Live failure-tolerance behaviour
+
+The 3D loop now also includes:
+
+- configuration provenance and a deterministic run fingerprint;
+- pre-step authority reduction for known uncertainty/model mismatch;
+- projected-force energy accounting;
+- environmental-power versus viscous/control-removal dominance;
+- enstrophy-production versus viscous-enstrophy-dissipation dominance;
+- accumulated excess environmental energy relative to initial kinetic energy;
+- sensor-scale drift and sign-reversed-controller fault hooks;
+- optional integer-step controller latency;
+- a hard watchdog that can override soft risk scoring and force isolation;
+- optional shadow simulation after isolation with experimental authority fixed at zero;
+- executable amplitude-robustness and recovery-effort sweeps;
+- executable grid and timestep convergence sweeps.
+
+A shadow run after isolation is for research only: the subsequent states remain
+labelled untrusted and cannot be promoted back to normal authority without a
+new validation decision.
