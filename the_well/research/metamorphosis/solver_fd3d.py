@@ -213,10 +213,7 @@ class PeriodicFiniteDifferenceNavierStokes3D:
                     time=time,
                     kinetic_energy=self.kinetic_energy(velocity),
                     max_vorticity=float(
-                        torch.linalg.vector_norm(omega, dim=-1)
-                        .amax()
-                        .detach()
-                        .cpu()
+                        torch.linalg.vector_norm(omega, dim=-1).amax().detach().cpu()
                     ),
                     divergence_residual=self.divergence_linf(velocity),
                 )
