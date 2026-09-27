@@ -45,9 +45,7 @@ def compare_uncontrolled_solvers(
     finite_difference_solver = PeriodicFiniteDifferenceNavierStokes3D(clean)
     fd_velocity, fd_records = finite_difference_solver.run()
 
-    difference = torch.linalg.vector_norm(
-        (spectral_velocity - fd_velocity).reshape(-1)
-    )
+    difference = torch.linalg.vector_norm((spectral_velocity - fd_velocity).reshape(-1))
     reference = torch.linalg.vector_norm(spectral_velocity.reshape(-1))
     velocity_relative_l2 = float(
         (difference / (reference + torch.finfo(spectral_velocity.dtype).eps))
@@ -58,14 +56,9 @@ def compare_uncontrolled_solvers(
     spectral_energy = spectral_records[-1].kinetic_energy
     fd_energy = fd_records[-1].kinetic_energy
 
-    spectral_omega = spectral_solver.spectral_vorticity(
-        spectral_state.velocity_hat
-    )
+    spectral_omega = spectral_solver.spectral_vorticity(spectral_state.velocity_hat)
     spectral_max_omega = float(
-        torch.linalg.vector_norm(spectral_omega, dim=-1)
-        .amax()
-        .detach()
-        .cpu()
+        torch.linalg.vector_norm(spectral_omega, dim=-1).amax().detach().cpu()
     )
     fd_max_omega = fd_records[-1].max_vorticity
 
