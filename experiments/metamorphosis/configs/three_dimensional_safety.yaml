@@ -1,0 +1,112 @@
+experiment:
+  name: three_dimensional_safety_taylor_green
+  stage: first_real_3d_time_stepper
+  purpose: >-
+    Run the same divergence-free Taylor-Green initial condition through an
+    uncontrolled and experimentally controlled 3D periodic Navier-Stokes
+    solver while the safety shell evaluates credibility inside the time loop.
+
+solver:
+  method: fourier_pseudospectral
+  integrator: rk4_with_step_doubling
+  pressure_handling: leray_projection
+  dealiasing: two_thirds
+  dimensions: 3
+  domain: periodic_cube
+  domain_length: 6.283185307179586
+  grid_size: 16
+  time_step: 0.002
+  final_time: 0.02
+  cfl_safety: 0.35
+  precision: float64
+
+fluid:
+  density: 1.0
+  kinematic_viscosity: 0.01
+  scalar_diffusivity: 0.001
+
+initial_condition:
+  type: three_dimensional_taylor_green
+  amplitude: 1.0
+  requirement: nonzero_vortex_stretching
+  marked_scalar:
+    enabled: true
+    type: periodic_centred_gaussian
+    width: 0.6
+
+controller:
+  compare_same_initial_state: true
+  uncontrolled_lane:
+    enabled: false
+  controlled_lane:
+    enabled: true
+    type: vorticity_weighted_damping_baseline
+    safe_vorticity: 1.0
+    proportional_gain: 0.1
+    max_control_force: 1.0
+    safety_authority_applied_inside_time_loop: true
+    interpretation: >-
+      Experimental damping baseline only. It is not a proven redistribution
+      law and a lower vorticity peak is not sufficient evidence of success.
+
+containment_environment:
+  interpretation: >-
+    The spectral solver is periodic and therefore has no literal solid wall.
+    These modes are a containment/environment-coupling abstraction for testing
+    closed, breached, and open forcing regimes. Literal wall fracture requires
+    a separate boundary-mechanics solver.
+  initial_mode: closed_strong
+  capacity: 10.0
+  permeability: 0.0
+  coupling: 1.0
+  environmental_strength: 0.0
+  on_capacity_exceeded: transition_to_open
+  open_environment_force:
+    type: divergence_free_periodic_body_force
+    sign: 1.0
+
+live_verification:
+  inside_each_accepted_step: true
+  local_error_estimate: rk4_full_step_vs_two_half_steps
+  track:
+    - divergence_residual
+    - time_discretisation_pde_defect
+    - energy_balance_residual
+    - local_convergence_error
+    - spectral_vs_finite_difference_vorticity_discrepancy
+    - spectral_tail_fraction
+    - marked_scalar_mass_fidelity
+    - observation_mismatch
+    - uncertainty
+    - validated_domain_distance
+
+physics_metrics:
+  track:
+    - max_velocity_gradient
+    - max_vorticity
+    - kinetic_energy
+    - enstrophy
+    - vortex_stretching_rate
+    - viscous_redistribution_rate
+    - stretching_production
+    - viscous_enstrophy_dissipation
+    - regulation_ratio
+
+safety:
+  architecture: "0->1->2->3->4"
+  modes:
+    - normal
+    - restricted
+    - safe
+    - emergency
+    - isolate
+  rule: >-
+    Loss of credibility reduces authority of the experimental controller on
+    the next step; known mismatch/uncertainty is applied before step one.
+  stop_on_isolate: true
+
+claims:
+  simulation_result: finite_resolution_engineering_evidence
+  singularity_signal: candidate_only
+  proof_claim: prohibited_without_rigorous_mathematical_proof
+  independent_solver_required_for_strong_claim: true
