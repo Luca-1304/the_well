@@ -140,15 +140,18 @@ Implemented:
 - purpose-relative preservation classes and marked-scalar mass/overlap metrics;
 - a bounded vorticity-weighted damping baseline;
 - an analytic 2D Taylor–Green verification runner;
-- analytic tests for the PDE residuals and diagnostic operators.
+- a 3D periodic Fourier-pseudospectral Navier–Stokes solver with Leray projection, 2/3 de-aliasing, RK4 and step-doubling;
+- passive-scalar transport in the 3D time loop;
+- live 0→1→2→3→4 safety decisions inside each accepted 3D step;
+- uncontrolled/controlled twin-run support from the same initial state;
+- a distinct second-order finite-difference + RK2 projection solver for short-horizon cross-validation;
+- analytic and adversarial tests for the PDE residuals, diagnostics, safety shell and 3D solver.
 
 Not implemented yet:
 
-- a conventional time-stepping Navier–Stokes solver for the controlled run;
 - a The Well dataset adapter;
-- genuine boundary, pressure, thermal, or counter-vorticity redistribution controllers;
-- the first 3D vortex-stretching experiment;
-- a PINN model and independent model comparison;
+- literal-wall boundary mechanics and genuine pressure, thermal, or counter-vorticity redistribution controllers;
+- a PINN model and The Well comparison;
 - optical, MHD, and adaptive switching extensions.
 
 ## Experiment ladder
@@ -156,9 +159,9 @@ Not implemented yet:
 0. Verify differential operators against analytic solutions.
 1. Run the 2D Taylor–Green baseline as an infrastructure test.
 2. Track a marked passive scalar and define measurable preservation proxies.
-3. Add a conventional numerical solver and compare uncontrolled flow with the damping baseline.
-4. Move immediately to a 3D periodic vortex case where vortex stretching is non-zero.
-5. Derive and compare stretching and redistribution directly from the vorticity equation.
+3. Run the conventional 3D numerical solver and compare uncontrolled flow with the damping baseline.
+4. Cross-check the 3D periodic vortex case against the independent finite-difference/RK2 path.
+5. Derive and compare stretching and redistribution directly from the vorticity and enstrophy equations.
 6. Add exterior-temperature coupling and temperature-dependent material properties.
 7. Test boundary, pressure, counter-vorticity, and thermal controls separately.
 8. Compare conventional numerical results, The Well data, and a PINN.
@@ -185,3 +188,75 @@ The analytic baseline is not evidence about 3D global regularity. Its purpose is
 - Compare PINNs against conventional solvers; do not rely on one model.
 - Use `viscoelastic_instability_v2`, not the deprecated dataset.
 - Treat every failure as information about the next valid question.
+## Safety-hardening layer
+
+The research track now uses a 0→1→2→3→4 architecture:
+
+0. validate model/domain/inputs;
+1. identify and normalise drivers;
+2. specify interaction, boundary, environment, uncertainty, viability and control authority;
+3. calculate the governing dynamics;
+4. independently challenge the result and reduce authority on loss of credibility.
+
+Executable safety utilities live in `the_well.research.metamorphosis.safety`.
+The adversarial contract is `experiments/metamorphosis/SAFETY.md`, with the
+machine-readable stress matrix in `configs/safety_stress.yaml`.
+
+Safety additions include:
+
+- explicit validity gates and parameter provenance;
+- physics/numerical/uncertainty/control/external/mismatch risk separation;
+- NORMAL → RESTRICTED → SAFE → EMERGENCY → ISOLATE authority modes;
+- model-mismatch detection that automatically reduces control authority;
+- closed, weak-containment and open boundary/environment scenarios;
+- overpowering-event diagnostics for dominance, duration, response speed,
+  concentration, geometry, coupling, cascades and recoverability;
+- minimum tested distance-to-failure and recovery-cost metrics;
+- deterministic configuration fingerprints for reproducibility;
+- enstrophy, stretching-production and viscous-dissipation integral diagnostics.
+
+The safety layer is a credibility and containment mechanism, not evidence of
+global regularity and not a substitute for an independent solver.
+
+
+## Running the 3D safety-integrated experiment
+
+From the repository root:
+
+```bash
+python -m the_well.research.metamorphosis.run_3d_simulation
+python -m the_well.research.metamorphosis.run_3d_verification
+pytest tests/test_metamorphosis_solver3d.py
+pytest tests/test_metamorphosis_cross_validation.py
+```
+
+The default 3D runner executes uncontrolled and controlled Taylor–Green lanes
+from the same initial state and, unless explicitly skipped, also runs the
+finite-difference/RK2 cross-validation path.
+
+The periodic solver has no literal solid wall. Its closed/weak/open
+containment modes are an explicit environment-coupling abstraction. Physical
+wall deformation or fracture must be tested in a separate boundary-mechanics
+solver before making claims about real containment failure.
+
+
+### Live failure-tolerance behaviour
+
+The 3D loop now also includes:
+
+- configuration provenance and a deterministic run fingerprint;
+- pre-step authority reduction for known uncertainty/model mismatch;
+- projected-force energy accounting;
+- environmental-power versus viscous/control-removal dominance;
+- enstrophy-production versus viscous-enstrophy-dissipation dominance;
+- accumulated excess environmental energy relative to initial kinetic energy;
+- sensor-scale drift and sign-reversed-controller fault hooks;
+- optional integer-step controller latency;
+- a hard watchdog that can override soft risk scoring and force isolation;
+- optional shadow simulation after isolation with experimental authority fixed at zero;
+- executable amplitude-robustness and recovery-effort sweeps;
+- executable grid and timestep convergence sweeps.
+
+A shadow run after isolation is for research only: the subsequent states remain
+labelled untrusted and cannot be promoted back to normal authority without a
+new validation decision.

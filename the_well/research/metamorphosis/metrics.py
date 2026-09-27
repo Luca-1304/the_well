@@ -204,3 +204,71 @@ def compute_metrics(
         vortex_stretching_rate=float(stretch_norm.detach().cpu()),
         viscous_redistribution_rate=float(diffusion_norm.detach().cpu()),
     )
+
+
+def enstrophy(
+    omega: Tensor,
+    *,
+    cell_volume: float = 1.0,
+) -> Tensor:
+    """Return one-half the integrated squared vorticity magnitude."""
+    if cell_volume <= 0:
+        raise ValueError("cell_volume must be positive")
+    if omega.ndim > 0 and omega.shape[-1] == 3:
+        magnitude_squared = (omega * omega).sum(dim=-1)
+    else:
+        magnitude_squared = omega * omega
+    return 0.5 * magnitude_squared.sum() * cell_volume
+
+
+def enstrophy_balance_integrals(
+    velocity: Tensor,
+    spacing: tuple[float, ...],
+    viscosity: float,
+) -> tuple[Tensor, Tensor, Tensor]:
+    """Return enstrophy, stretching production, and viscous dissipation.
+
+    For smooth periodic 3D flow these pair with the exact enstrophy balance
+    (up to any forcing contribution):
+
+        dZ/dt = P_stretch - D_viscous.
+
+    In 2D, P_stretch is exactly zero. These are integral diagnostics; they do
+    not by themselves prove regularity or singularity.
+    """
+    if viscosity < 0:
+        raise ValueError("viscosity cannot be negative")
+    if len(spacing) not in (2, 3) or any(step <= 0 for step in spacing):
+        raise ValueError("spacing must contain positive 2D or 3D steps")
+
+    omega = vorticity(velocity, spacing)
+    stretching, _ = vorticity_balance_terms(velocity, spacing, viscosity)
+    cell_volume = float(torch.tensor(spacing).prod())
+    total_enstrophy = enstrophy(omega, cell_volume=cell_volume)
+
+    if velocity.ndim - 1 == 2:
+        stretching_production = torch.zeros(
+            (), dtype=velocity.dtype, device=velocity.device
+        )
+        gradients = torch.gradient(
+            omega,
+            spacing=spacing,
+            dim=tuple(range(len(spacing))),
+        )
+        gradient_squared = sum(gradient * gradient for gradient in gradients)
+    else:
+        stretching_production = (omega * stretching).sum(dim=-1).sum() * cell_volume
+        gradient_squared = torch.zeros_like(omega[..., 0])
+        axes = tuple(range(len(spacing)))
+        for component in range(omega.shape[-1]):
+            gradients = torch.gradient(
+                omega[..., component],
+                spacing=spacing,
+                dim=axes,
+            )
+            gradient_squared = gradient_squared + sum(
+                gradient * gradient for gradient in gradients
+            )
+
+    viscous_dissipation = viscosity * gradient_squared.sum() * cell_volume
+    return total_enstrophy, stretching_production, viscous_dissipation
