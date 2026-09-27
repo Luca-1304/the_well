@@ -51,21 +51,15 @@ def _run_point(config: SpectralSimulationConfig) -> ConvergencePoint:
         final_velocity_gradient=final.max_velocity_gradient,
         final_vorticity=final.max_vorticity,
         final_kinetic_energy=final.kinetic_energy,
-        peak_velocity_gradient=max(
-            record.max_velocity_gradient for record in records
-        ),
+        peak_velocity_gradient=max(record.max_velocity_gradient for record in records),
         peak_vorticity=max(record.max_vorticity for record in records),
-        max_divergence_residual=max(
-            record.divergence_residual for record in records
-        ),
+        max_divergence_residual=max(record.divergence_residual for record in records),
         max_pde_residual=max(record.pde_residual for record in records),
         max_energy_residual=max(record.energy_residual for record in records),
         max_spectral_tail_fraction=max(
             record.spectral_tail_fraction for record in records
         ),
-        all_predictions_trusted=all(
-            record.trusted_prediction for record in records
-        ),
+        all_predictions_trusted=all(record.trusted_prediction for record in records),
     )
 
 
@@ -77,8 +71,7 @@ def resolution_sweep(
         raise ValueError("resolution sweep requires at least two grid sizes")
 
     points = [
-        _run_point(replace(config, grid_size=grid_size))
-        for grid_size in grid_sizes
+        _run_point(replace(config, grid_size=grid_size)) for grid_size in grid_sizes
     ]
     differences = []
     for coarse, fine in zip(points, points[1:]):
@@ -113,8 +106,7 @@ def timestep_sweep(
         raise ValueError("time steps must be finite and positive")
 
     points = [
-        _run_point(replace(config, time_step=time_step))
-        for time_step in time_steps
+        _run_point(replace(config, time_step=time_step)) for time_step in time_steps
     ]
     differences = []
     for coarse, fine in zip(points, points[1:]):
