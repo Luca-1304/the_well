@@ -757,6 +757,7 @@ class PeriodicSpectralNavierStokes3D:
     def _verification(
         self,
         old_velocity_hat: Tensor,
+        old_scalar_hat: Tensor,
         new_velocity_hat: Tensor,
         new_scalar_hat: Tensor,
         full_step_velocity_hat: Tensor,
@@ -772,9 +773,12 @@ class PeriodicSpectralNavierStokes3D:
         float,
         BoundaryState,
         float,
+        float,
+        float,
+        float,
     ]:
         new_velocity = self._ifft_vector(new_velocity_hat)
-        total_force, control, _, boundary = self._forces(
+        total_force, control, environmental, boundary = self._forces(
             new_velocity, new_velocity_hat, authority_scale
         )
 
@@ -788,22 +792,33 @@ class PeriodicSpectralNavierStokes3D:
             .cpu()
         )
         energy_rate = (new_energy - old_energy) / dt
-        power = float(
-            (
-                self.config.density
-                * (new_velocity * total_force).sum(dim=-1).sum()
-                * self.dx**3
+        def power_from_force(force: Tensor) -> float:
+            return float(
+                (
+                    self.config.density
+                    * (new_velocity * force).sum(dim=-1).sum()
+                    * self.dx**3
+                )
+                .detach()
+                .cpu()
             )
-            .detach()
-            .cpu()
-        )
+
+        environmental_power = power_from_force(environmental)
+        control_power = power_from_force(control)
+        total_power = power_from_force(total_force)
         dissipation = self._gradient_dissipation(new_velocity_hat)
-        energy_scale = max(abs(energy_rate), abs(power) + abs(dissipation), 1.0e-12)
-        energy_residual = abs(energy_rate - (power - dissipation)) / energy_scale
+        energy_scale = max(
+            abs(energy_rate),
+            abs(total_power) + abs(dissipation),
+            1.0e-12,
+        )
+        energy_residual = abs(
+            energy_rate - (total_power - dissipation)
+        ) / energy_scale
 
         rhs_old, _ = self._rhs(
             old_velocity_hat,
-            new_scalar_hat,
+            old_scalar_hat,
             authority_scale,
         )
         rhs_new, _ = self._rhs(
@@ -871,6 +886,9 @@ class PeriodicSpectralNavierStokes3D:
             self._control_effort(control),
             boundary,
             operator_discrepancy,
+            environmental_power,
+            control_power,
+            dissipation,
         )
 
     def step(
@@ -924,8 +942,12 @@ class PeriodicSpectralNavierStokes3D:
             control_effort,
             boundary,
             operator_discrepancy,
+            environmental_power,
+            control_power,
+            viscous_energy_dissipation,
         ) = self._verification(
             state.velocity_hat,
+            state.scalar_hat,
             accepted_velocity_hat,
             accepted_scalar_hat,
             full_velocity_hat,
