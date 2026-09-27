@@ -514,3 +514,20 @@ def configuration_fingerprint(configuration: Mapping[str, object]) -> str:
         allow_nan=False,
     ).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
+
+
+def require_validity(gate: ValidityGate) -> None:
+    """Block execution when any pre-run validity requirement is unresolved."""
+    if not gate.passes:
+        failures = ", ".join(gate.failures)
+        raise ValueError(f"validity gate failed: {failures}")
+
+
+def validate_input_records(records: Sequence[ScalarInputRecord]) -> None:
+    """Validate provenance-bearing scalar inputs and reject duplicate names."""
+    seen: set[str] = set()
+    for record in records:
+        record.validate()
+        if record.name in seen:
+            raise ValueError(f"duplicate input name: {record.name}")
+        seen.add(record.name)
