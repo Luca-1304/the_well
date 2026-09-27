@@ -216,6 +216,14 @@ class SimulationRecord:
     safety_mode: str
     authority_scale: float
     confidence: float
+    physics_risk: float
+    numerical_risk: float
+    uncertainty_risk: float
+    control_risk: float
+    external_risk: float
+    mismatch_risk: float
+    maximum_risk: float
+    safety_reasons: tuple[str, ...]
     trusted_prediction: bool
     model_mismatch: bool
 
@@ -1185,6 +1193,14 @@ class PeriodicSpectralNavierStokes3D:
             safety_mode=decision.mode.value,
             authority_scale=decision.authority_scale,
             confidence=confidence,
+            physics_risk=risk.physics,
+            numerical_risk=risk.numerical,
+            uncertainty_risk=risk.uncertainty,
+            control_risk=risk.control,
+            external_risk=risk.external,
+            mismatch_risk=risk.mismatch,
+            maximum_risk=risk.maximum,
+            safety_reasons=decision.reasons,
             trusted_prediction=decision.trusted_prediction,
             model_mismatch=decision.model_mismatch,
         )
