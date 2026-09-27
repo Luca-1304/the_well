@@ -75,6 +75,9 @@ class SpectralSimulationConfig:
     )
     environment_sign: float = 1.0
     environment_component_weights: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    environment_feedback_gain: float = 0.0
+    max_environment_amplification: float = 10.0
+    environment_disturbance_time: float = 1.0
     controller_sign: float = 1.0
     sensor_vorticity_scale: float = 1.0
     controller_delay_steps: int = 0
@@ -129,6 +132,24 @@ class SpectralSimulationConfig:
         ):
             raise ValueError(
                 "environment_component_weights must contain three finite values"
+            )
+        if self.environment_feedback_gain < 0 or not math.isfinite(
+            self.environment_feedback_gain
+        ):
+            raise ValueError(
+                "environment_feedback_gain must be finite and non-negative"
+            )
+        if self.max_environment_amplification < 1.0 or not math.isfinite(
+            self.max_environment_amplification
+        ):
+            raise ValueError(
+                "max_environment_amplification must be finite and at least 1"
+            )
+        if self.environment_disturbance_time <= 0 or not math.isfinite(
+            self.environment_disturbance_time
+        ):
+            raise ValueError(
+                "environment_disturbance_time must be finite and positive"
             )
         if self.sensor_vorticity_scale <= 0 or not math.isfinite(
             self.sensor_vorticity_scale
@@ -196,6 +217,10 @@ class SimulationRecord:
     environmental_influence: float
     control_effort: float
     environmental_power: float
+    environment_cascade_amplification: float
+    response_timescale_ratio: float
+    actuator_to_environment_force_ratio: float
+    containment_margin_fraction: float
     control_power: float
     viscous_energy_dissipation: float
     energy_power_dominance_ratio: float
@@ -342,6 +367,11 @@ class PeriodicSpectralNavierStokes3D:
             "environment_component_weights": list(
                 self.config.environment_component_weights
             ),
+            "environment_feedback_gain": self.config.environment_feedback_gain,
+            "max_environment_amplification": (
+                self.config.max_environment_amplification
+            ),
+            "environment_disturbance_time": self.config.environment_disturbance_time,
         }
 
     def run_manifest(
@@ -527,8 +557,28 @@ class PeriodicSpectralNavierStokes3D:
             gradients.append(row)
         return gradients
 
+    def environment_cascade_amplification(
+        self,
+        boundary: BoundaryState,
+    ) -> float:
+        if (
+            boundary.environmental_influence == 0.0
+            or self.config.environment_feedback_gain == 0.0
+        ):
+            return 1.0
+        load_ratio = boundary.load / boundary.capacity
+        amplification = 1.0 + self.config.environment_feedback_gain * max(
+            load_ratio - 1.0,
+            0.0,
+        )
+        return min(amplification, self.config.max_environment_amplification)
+
     def environment_force(self, boundary: BoundaryState) -> Tensor:
-        amplitude = self.config.environment_sign * boundary.environmental_influence
+        amplitude = (
+            self.config.environment_sign
+            * boundary.environmental_influence
+            * self.environment_cascade_amplification(boundary)
+        )
         scale = 2.0 * math.pi / self.config.domain_length
         weights = self.config.environment_component_weights
         phase_x = scale * self.x
@@ -1065,6 +1115,45 @@ class PeriodicSpectralNavierStokes3D:
         confidence = confidence_from_risk(risk)
 
         accepted_velocity = self._ifft_vector(accepted_velocity_hat)
+        _, _, raw_environmental_force, _ = self._forces(
+            accepted_velocity,
+            accepted_velocity_hat,
+            state.authority_scale,
+            control_override=control_override,
+        )
+        applied_environmental_force = self.project_physical_vector(
+            raw_environmental_force
+        )
+        environmental_force_linf = float(
+            torch.linalg.vector_norm(applied_environmental_force, dim=-1)
+            .amax()
+            .detach()
+            .cpu()
+        )
+        available_control_force = (
+            self.config.controller.max_control_force * state.authority_scale
+            if self.config.controller_enabled
+            else 0.0
+        )
+        if environmental_force_linf == 0.0:
+            actuator_to_environment_force_ratio = (
+                float("inf") if available_control_force > 0.0 else 0.0
+            )
+        else:
+            actuator_to_environment_force_ratio = (
+                available_control_force / environmental_force_linf
+            )
+        response_timescale_ratio = (
+            (self.config.controller_delay_steps + 1) * dt
+            / self.config.environment_disturbance_time
+        )
+        containment_margin_fraction = (
+            (boundary.capacity - boundary.load) / boundary.capacity
+            if boundary.breachable
+            else float("inf")
+        )
+        cascade_amplification = self.environment_cascade_amplification(boundary)
+
         continuation = compute_metrics(
             accepted_velocity,
             self.spacing,
@@ -1164,6 +1253,12 @@ class PeriodicSpectralNavierStokes3D:
             environmental_influence=boundary.environmental_influence,
             control_effort=control_effort,
             environmental_power=environmental_power,
+            environment_cascade_amplification=cascade_amplification,
+            response_timescale_ratio=response_timescale_ratio,
+            actuator_to_environment_force_ratio=(
+                actuator_to_environment_force_ratio
+            ),
+            containment_margin_fraction=containment_margin_fraction,
             control_power=control_power,
             viscous_energy_dissipation=viscous_energy_dissipation,
             energy_power_dominance_ratio=energy_power_dominance_ratio,
