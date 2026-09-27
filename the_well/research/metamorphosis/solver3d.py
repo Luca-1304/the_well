@@ -1026,11 +1026,21 @@ class PeriodicSpectralNavierStokes3D:
             power_external_risk,
             containment_risk,
         )
+        positive_control_power = max(control_power, 0.0)
+        control_injection_risk = positive_control_power / (
+            positive_control_power
+            + viscous_energy_dissipation
+            + 1.0e-12
+        )
+        dynamic_control_risk = max(
+            self.config.control_risk,
+            control_injection_risk,
+        )
 
         risk = risk_from_verification(
             verification,
             self.config.verification_scales,
-            control_risk=self.config.control_risk,
+            control_risk=dynamic_control_risk,
             external_risk=dynamic_external_risk,
         )
         mismatch = detect_model_mismatch(
