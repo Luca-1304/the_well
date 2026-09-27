@@ -58,6 +58,7 @@ class SpectralSimulationConfig:
     cfl_safety: float = 0.35
     max_steps: int = 10000
     dealias: bool = True
+    stop_on_isolate: bool = True
     controller_enabled: bool = False
     controller: ControllerConfig = field(
         default_factory=lambda: ControllerConfig(
@@ -326,6 +327,7 @@ class PeriodicSpectralNavierStokes3D:
             "final_time": self.config.final_time,
             "cfl_safety": self.config.cfl_safety,
             "dealias": self.config.dealias,
+            "stop_on_isolate": self.config.stop_on_isolate,
             "controller_enabled": self.config.controller_enabled,
             "controller_sign": self.config.controller_sign,
             "sensor_vorticity_scale": self.config.sensor_vorticity_scale,
@@ -1246,7 +1248,10 @@ class PeriodicSpectralNavierStokes3D:
             records.append(record)
             velocity_history.append(state.velocity_hat.detach().clone())
 
-            if record.safety_mode == OperationalMode.ISOLATE.value:
+            if (
+                self.config.stop_on_isolate
+                and record.safety_mode == OperationalMode.ISOLATE.value
+            ):
                 break
 
         return state, records
