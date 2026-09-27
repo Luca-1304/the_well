@@ -127,7 +127,9 @@ def test_containment_failure_opens_environment_during_evolution() -> None:
     assert first.environmental_influence == pytest.approx(0.1)
 
 
-def test_twin_run_uses_same_initial_problem_but_control_only_in_controlled_lane() -> None:
+def test_twin_run_uses_same_initial_problem_but_control_only_in_controlled_lane() -> (
+    None
+):
     config = short_config(
         final_time=1.0e-3,
         controller=ControllerConfig(
