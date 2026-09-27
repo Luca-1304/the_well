@@ -336,6 +336,7 @@ class PeriodicSpectralNavierStokes3D:
             "boundary_capacity": self.config.boundary.capacity,
             "boundary_permeability": self.config.boundary.permeability,
             "boundary_coupling": self.config.boundary.coupling,
+            "boundary_breachable": self.config.boundary.breachable,
             "environmental_strength": self.config.boundary.environmental_strength,
             "environment_sign": self.config.environment_sign,
             "environment_component_weights": list(
