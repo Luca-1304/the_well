@@ -45,6 +45,9 @@ controller:
     proportional_gain: 0.1
     max_control_force: 1.0
     safety_authority_applied_inside_time_loop: true
+    controller_delay_steps: 0
+    sensor_vorticity_scale: 1.0
+    controller_sign: 1.0
     interpretation: >-
       Experimental damping baseline only. It is not a proven redistribution
       law and a lower vorticity peak is not sufficient evidence of success.
@@ -76,6 +79,12 @@ live_verification:
     - spectral_vs_finite_difference_vorticity_discrepancy
     - spectral_tail_fraction
     - marked_scalar_mass_fidelity
+    - environmental_power
+    - control_power
+    - viscous_energy_dissipation
+    - energy_power_dominance_ratio
+    - accumulated_overpowering_energy_fraction
+    - enstrophy_dominance_ratio
     - observation_mismatch
     - uncertainty
     - validated_domain_distance
@@ -104,9 +113,34 @@ safety:
     Loss of credibility reduces authority of the experimental controller on
     the next step; known mismatch/uncertainty is applied before step one.
   stop_on_isolate: true
+  shadow_mode_available: true
+  hard_watchdog:
+    divergence_limit: 1.0e-6
+    energy_residual_limit: 1.0
+    minimum_scalar_mass_fidelity: 0.95
 
 claims:
   simulation_result: finite_resolution_engineering_evidence
   singularity_signal: candidate_only
   proof_claim: prohibited_without_rigorous_mathematical_proof
   independent_solver_required_for_strong_claim: true
+
+
+independent_cross_validation:
+  primary:
+    spatial_method: fourier_pseudospectral
+    time_integrator: rk4
+  secondary:
+    spatial_method: second_order_periodic_finite_difference
+    time_integrator: heun_rk2
+    incompressibility_projection: fft_with_central_difference_symbol
+  limitation: >-
+    Both current paths solve the periodic pressure projection in Fourier space,
+    so this is a materially different numerical path but not total
+    implementation independence.
+
+robustness_sweeps:
+  initial_amplitude_flip_margin: enabled
+  recovery_effort: enabled_with_predeclared_gradient_limit
+  grid_convergence: enabled
+  timestep_convergence: enabled
