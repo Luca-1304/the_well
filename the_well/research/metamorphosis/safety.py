@@ -433,7 +433,6 @@ def overpowering_metrics(
     coupling: float = 1.0,
     cascade_gain: float = 1.0,
     recoverability_distance: float = 0.0,
-    epsilon: float = 1.0e-12,
 ) -> OverpoweringMetrics:
     """Summarise a dimensionless overpowering-event scenario.
 
@@ -458,14 +457,23 @@ def overpowering_metrics(
             raise ValueError(f"{name} must be finite and non-negative")
     if disturbance_time <= 0:
         raise ValueError("disturbance_time must be positive")
-    if epsilon <= 0:
-        raise ValueError("epsilon must be positive")
 
     effective_disturbance = (
         disturbance * concentration_factor * geometry_gain * coupling
     )
-    dominance_ratio = effective_disturbance / (restoring + epsilon)
-    accumulated_exceedance = max(dominance_ratio - 1.0, 0.0) * exceedance_duration
+    if restoring == 0.0:
+        dominance_ratio = 0.0 if effective_disturbance == 0.0 else float("inf")
+    else:
+        dominance_ratio = effective_disturbance / restoring
+
+    if math.isinf(dominance_ratio):
+        accumulated_exceedance = (
+            float("inf") if exceedance_duration > 0.0 else 0.0
+        )
+    else:
+        accumulated_exceedance = (
+            max(dominance_ratio - 1.0, 0.0) * exceedance_duration
+        )
     timescale_ratio = response_time / disturbance_time
     return OverpoweringMetrics(
         dominance_ratio=dominance_ratio,
