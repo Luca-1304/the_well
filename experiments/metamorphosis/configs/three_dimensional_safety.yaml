@@ -133,6 +133,10 @@ safety:
     - viscous_energy_dissipation
     - environmental_power_to_restoring_power_ratio
     - accumulated_overpowering_energy_fraction
+    - environment_cascade_amplification
+    - response_timescale_ratio
+    - actuator_to_environment_force_ratio
+    - containment_margin_fraction
     - stretching_production_to_viscous_enstrophy_dissipation_ratio
   human_error_controls:
     - provenance_bearing_scalar_inputs
