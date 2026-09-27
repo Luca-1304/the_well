@@ -50,9 +50,7 @@ def summarise(records: list[object]) -> dict[str, object]:
         "peak_vortex_stretching_rate": peak_stretching,
         "minimum_scalar_mass_fidelity": minimum_mass_fidelity,
         "maximum_control_effort": maximum_control_effort,
-        "all_predictions_trusted": all(
-            record.trusted_prediction for record in records
-        ),
+        "all_predictions_trusted": all(record.trusted_prediction for record in records),
     }
 
 
@@ -64,12 +62,8 @@ def run_twin_experiment(
     uncontrolled_config = replace(config, controller_enabled=False)
     controlled_config = replace(config, controller_enabled=True)
 
-    _, uncontrolled_records = PeriodicSpectralNavierStokes3D(
-        uncontrolled_config
-    ).run()
-    _, controlled_records = PeriodicSpectralNavierStokes3D(
-        controlled_config
-    ).run()
+    _, uncontrolled_records = PeriodicSpectralNavierStokes3D(uncontrolled_config).run()
+    _, controlled_records = PeriodicSpectralNavierStokes3D(controlled_config).run()
 
     result: dict[str, object] = {
         "uncontrolled": summarise(uncontrolled_records),
@@ -100,7 +94,9 @@ def main() -> None:
     parser.add_argument("--permeability", type=float, default=0.5)
     parser.add_argument("--coupling", type=float, default=1.0)
     parser.add_argument("--environmental-strength", type=float, default=0.0)
-    parser.add_argument("--environment-sign", type=float, choices=(-1.0, 1.0), default=1.0)
+    parser.add_argument(
+        "--environment-sign", type=float, choices=(-1.0, 1.0), default=1.0
+    )
     parser.add_argument("--safe-vorticity", type=float, default=1.0)
     parser.add_argument("--controller-gain", type=float, default=0.1)
     parser.add_argument("--max-control-force", type=float, default=1.0)
