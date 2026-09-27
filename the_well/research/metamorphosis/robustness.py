@@ -6,7 +6,6 @@ import math
 from dataclasses import dataclass, replace
 from typing import Sequence
 
-from .controller import ControllerConfig
 from .safety import minimum_flip_margin, minimum_recovery_cost
 from .solver3d import (
     PeriodicSpectralNavierStokes3D,
@@ -81,9 +80,7 @@ def amplitude_robustness_sweep(
         if amplitude <= 0:
             raise ValueError("perturbation produces a non-positive amplitude")
 
-        _, records = PeriodicSpectralNavierStokes3D(config).run(
-            amplitude=amplitude
-        )
+        _, records = PeriodicSpectralNavierStokes3D(config).run(amplitude=amplitude)
         outcome = outcome_signature(records)
         results.append(
             AmplitudeRobustnessResult(
@@ -114,9 +111,7 @@ def recovery_sweep(
     if max_velocity_gradient_limit <= 0 or not math.isfinite(
         max_velocity_gradient_limit
     ):
-        raise ValueError(
-            "max_velocity_gradient_limit must be finite and positive"
-        )
+        raise ValueError("max_velocity_gradient_limit must be finite and positive")
 
     trials: list[RecoveryTrial] = []
     costs: list[float] = []
@@ -136,9 +131,7 @@ def recovery_sweep(
             controller=controller,
         )
         _, records = PeriodicSpectralNavierStokes3D(trial_config).run()
-        peak_gradient = max(
-            record.max_velocity_gradient for record in records
-        )
+        peak_gradient = max(record.max_velocity_gradient for record in records)
         recovered = (
             peak_gradient <= max_velocity_gradient_limit
             and not any(record.watchdog_triggered for record in records)
