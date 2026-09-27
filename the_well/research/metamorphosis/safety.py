@@ -69,9 +69,7 @@ class SafetyThresholds:
         values = (self.restricted, self.safe, self.emergency, self.isolate)
         if not all(0.0 <= value <= 1.0 for value in values):
             raise ValueError("safety thresholds must lie between 0 and 1")
-        if not (
-            self.restricted < self.safe < self.emergency < self.isolate
-        ):
+        if not (self.restricted < self.safe < self.emergency < self.isolate):
             raise ValueError("safety thresholds must be strictly increasing")
 
 
@@ -168,9 +166,7 @@ class BoundaryState:
         if self.environmental_strength < 0 or not math.isfinite(
             self.environmental_strength
         ):
-            raise ValueError(
-                "environmental_strength must be finite and non-negative"
-            )
+            raise ValueError("environmental_strength must be finite and non-negative")
         if self.mode is BoundaryMode.CLOSED_STRONG and self.permeability != 0.0:
             raise ValueError("closed_strong boundaries require zero permeability")
 
