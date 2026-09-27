@@ -51,7 +51,9 @@ def test_missing_recovery_returns_infinite_cost() -> None:
     assert math.isinf(minimum_recovery_cost([1.0, 2.0], [False, False]))
 
 
-def test_non_breachable_containment_does_not_transition_on_capacity_exceedance() -> None:
+def test_non_breachable_containment_does_not_transition_on_capacity_exceedance() -> (
+    None
+):
     boundary = BoundaryState(
         mode=BoundaryMode.CLOSED_STRONG,
         load=100.0,
