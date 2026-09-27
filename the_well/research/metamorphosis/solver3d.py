@@ -896,6 +896,7 @@ class PeriodicSpectralNavierStokes3D:
         state: SpectralState,
         *,
         initial_scalar_mass: float,
+        initial_energy: float,
     ) -> tuple[SpectralState, SimulationRecord]:
         remaining = self.config.final_time - state.time
         if remaining <= 0:
@@ -957,11 +958,26 @@ class PeriodicSpectralNavierStokes3D:
             initial_scalar_mass,
         )
 
+        positive_environmental_power = max(environmental_power, 0.0)
+        power_external_risk = positive_environmental_power / (
+            positive_environmental_power
+            + viscous_energy_dissipation
+            + 1.0e-12
+        )
+        containment_risk = boundary.load / (
+            boundary.load + boundary.capacity
+        )
+        dynamic_external_risk = max(
+            self.config.external_risk,
+            power_external_risk,
+            containment_risk,
+        )
+
         risk = risk_from_verification(
             verification,
             self.config.verification_scales,
             control_risk=self.config.control_risk,
-            external_risk=self.config.external_risk,
+            external_risk=dynamic_external_risk,
         )
         mismatch = detect_model_mismatch(
             verification,
@@ -989,6 +1005,83 @@ class PeriodicSpectralNavierStokes3D:
                 self.config.viscosity,
             )
         )
+        stretching_production_value = float(
+            stretching_production.detach().cpu()
+        )
+        viscous_enstrophy_dissipation = float(
+            viscous_dissipation.detach().cpu()
+        )
+
+        restoring_power = (
+            viscous_energy_dissipation + max(-control_power, 0.0)
+        )
+        if restoring_power == 0.0:
+            energy_power_dominance_ratio = (
+                0.0
+                if positive_environmental_power == 0.0
+                else float("inf")
+            )
+        else:
+            energy_power_dominance_ratio = (
+                positive_environmental_power / restoring_power
+            )
+        overpowering_increment = max(
+            positive_environmental_power - restoring_power,
+            0.0,
+        ) * dt
+        accumulated_overpowering_energy = (
+            state.accumulated_overpowering_energy + overpowering_increment
+        )
+        accumulated_overpowering_fraction = (
+            accumulated_overpowering_energy / max(initial_energy, 1.0e-12)
+        )
+
+        positive_stretching = max(stretching_production_value, 0.0)
+        if viscous_enstrophy_dissipation == 0.0:
+            enstrophy_dominance_ratio = (
+                0.0 if positive_stretching == 0.0 else float("inf")
+            )
+        else:
+            enstrophy_dominance_ratio = (
+                positive_stretching / viscous_enstrophy_dissipation
+            )
+
+        watchdog_reasons: list[str] = []
+        critical_values = (
+            continuation.max_velocity_gradient,
+            continuation.max_vorticity,
+            new_energy,
+            verification.pde_residual,
+            verification.divergence_residual,
+            verification.energy_residual,
+        )
+        if any(not math.isfinite(value) for value in critical_values):
+            watchdog_reasons.append("nonfinite_state_or_residual")
+        if (
+            verification.divergence_residual
+            > self.config.watchdog_divergence_limit
+        ):
+            watchdog_reasons.append("divergence_limit")
+        if (
+            verification.energy_residual
+            > self.config.watchdog_energy_residual_limit
+        ):
+            watchdog_reasons.append("energy_accounting_limit")
+        if (
+            scalar_mass_fidelity
+            < self.config.watchdog_min_scalar_mass_fidelity
+        ):
+            watchdog_reasons.append("scalar_mass_fidelity")
+
+        if watchdog_reasons:
+            decision = SafetyDecision(
+                mode=OperationalMode.ISOLATE,
+                authority_scale=0.0,
+                trusted_prediction=False,
+                model_mismatch=True,
+                reasons=decision.reasons + tuple(watchdog_reasons),
+            )
+            confidence = 0.0
 
         record = SimulationRecord(
             step=state.step + 1,
@@ -998,8 +1091,8 @@ class PeriodicSpectralNavierStokes3D:
             max_vorticity=continuation.max_vorticity,
             kinetic_energy=new_energy,
             enstrophy=float(total_enstrophy.detach().cpu()),
-            stretching_production=float(stretching_production.detach().cpu()),
-            viscous_enstrophy_dissipation=float(viscous_dissipation.detach().cpu()),
+            stretching_production=stretching_production_value,
+            viscous_enstrophy_dissipation=viscous_enstrophy_dissipation,
             vortex_stretching_rate=continuation.vortex_stretching_rate,
             viscous_redistribution_rate=continuation.viscous_redistribution_rate,
             regulation_ratio=continuation.regulation_ratio,
@@ -1015,6 +1108,16 @@ class PeriodicSpectralNavierStokes3D:
             containment_failed=boundary.containment_failed,
             environmental_influence=boundary.environmental_influence,
             control_effort=control_effort,
+            environmental_power=environmental_power,
+            control_power=control_power,
+            viscous_energy_dissipation=viscous_energy_dissipation,
+            energy_power_dominance_ratio=energy_power_dominance_ratio,
+            accumulated_overpowering_energy_fraction=(
+                accumulated_overpowering_fraction
+            ),
+            enstrophy_dominance_ratio=enstrophy_dominance_ratio,
+            watchdog_triggered=bool(watchdog_reasons),
+            watchdog_reasons=tuple(watchdog_reasons),
             safety_mode=decision.mode.value,
             authority_scale=decision.authority_scale,
             confidence=confidence,
@@ -1028,6 +1131,7 @@ class PeriodicSpectralNavierStokes3D:
             time=record.time,
             step=record.step,
             authority_scale=decision.authority_scale,
+            accumulated_overpowering_energy=accumulated_overpowering_energy,
         )
         return next_state, record
 
@@ -1039,6 +1143,16 @@ class PeriodicSpectralNavierStokes3D:
     ) -> tuple[SpectralState, list[SimulationRecord]]:
         state = self.initialise(amplitude=amplitude, scalar_width=scalar_width)
         initial_scalar_mass = self._scalar_mass(state.scalar_hat)
+        initial_velocity = self._ifft_vector(state.velocity_hat)
+        initial_energy = float(
+            kinetic_energy(
+                initial_velocity,
+                cell_volume=self.dx**3,
+                density=self.config.density,
+            )
+            .detach()
+            .cpu()
+        )
         records: list[SimulationRecord] = []
 
         while state.time < self.config.final_time:
@@ -1047,6 +1161,7 @@ class PeriodicSpectralNavierStokes3D:
             state, record = self.step(
                 state,
                 initial_scalar_mass=initial_scalar_mass,
+                initial_energy=initial_energy,
             )
             records.append(record)
 
