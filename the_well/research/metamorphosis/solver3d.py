@@ -302,6 +302,12 @@ class PeriodicSpectralNavierStokes3D:
             model_mismatch=mismatch,
         ).authority_scale
 
+    def physical_velocity(self, state: SpectralState) -> Tensor:
+        return self._ifft_vector(state.velocity_hat)
+
+    def physical_scalar(self, state: SpectralState) -> Tensor:
+        return torch.fft.ifftn(state.scalar_hat, dim=(0, 1, 2)).real
+
     def _fft_vector(self, field: Tensor) -> Tensor:
         return torch.fft.fftn(field, dim=(0, 1, 2))
 
