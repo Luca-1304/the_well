@@ -124,12 +124,8 @@ def main() -> None:
     parser.add_argument("--environment-weight-y", type=float, default=1.0)
     parser.add_argument("--environment-weight-z", type=float, default=1.0)
     parser.add_argument("--environment-feedback-gain", type=float, default=0.0)
-    parser.add_argument(
-        "--max-environment-amplification", type=float, default=10.0
-    )
-    parser.add_argument(
-        "--environment-disturbance-time", type=float, default=1.0
-    )
+    parser.add_argument("--max-environment-amplification", type=float, default=10.0)
+    parser.add_argument("--environment-disturbance-time", type=float, default=1.0)
     parser.add_argument("--safe-vorticity", type=float, default=1.0)
     parser.add_argument("--controller-gain", type=float, default=0.1)
     parser.add_argument("--max-control-force", type=float, default=1.0)
@@ -139,12 +135,8 @@ def main() -> None:
     parser.add_argument("--controller-delay-steps", type=int, default=0)
     parser.add_argument("--sensor-vorticity-scale", type=float, default=1.0)
     parser.add_argument("--watchdog-divergence-limit", type=float, default=1.0e-6)
-    parser.add_argument(
-        "--watchdog-energy-residual-limit", type=float, default=1.0
-    )
-    parser.add_argument(
-        "--watchdog-min-scalar-mass-fidelity", type=float, default=0.95
-    )
+    parser.add_argument("--watchdog-energy-residual-limit", type=float, default=1.0)
+    parser.add_argument("--watchdog-min-scalar-mass-fidelity", type=float, default=0.95)
     parser.add_argument("--observation-mismatch", type=float, default=0.0)
     parser.add_argument("--base-uncertainty", type=float, default=0.0)
     parser.add_argument("--skip-cross-validation", action="store_true")
@@ -185,9 +177,7 @@ def main() -> None:
         sensor_vorticity_scale=args.sensor_vorticity_scale,
         watchdog_divergence_limit=args.watchdog_divergence_limit,
         watchdog_energy_residual_limit=args.watchdog_energy_residual_limit,
-        watchdog_min_scalar_mass_fidelity=(
-            args.watchdog_min_scalar_mass_fidelity
-        ),
+        watchdog_min_scalar_mass_fidelity=(args.watchdog_min_scalar_mass_fidelity),
         observation_mismatch=args.observation_mismatch,
         base_uncertainty=args.base_uncertainty,
     )
