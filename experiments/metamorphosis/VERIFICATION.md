@@ -30,3 +30,19 @@ On 2 August 2026, GitHub Actions run 50 passed after the executable modules were
 This evidence records software behaviour for that exact branch state. Any later code change or changed merge context must pass the gate again.
 
 A green software-verification run establishes only that the implemented equations, diagnostics, fixtures and packaging behave as tested. It does not establish the proposed redistribution hypothesis, physical effectiveness, or a Navier–Stokes proof.
+## Safety-hardening revalidation
+
+Any safety-layer change invalidates the previous exact-code verification state.
+Before this branch can be treated as verified software evidence, require:
+
+- the complete parent suite on all repository-supported Python versions;
+- `tests/test_metamorphosis.py` and `tests/test_metamorphosis_safety.py` collected;
+- formatting/pre-commit clean without mutation;
+- authority reduction confirmed for model mismatch and high residual risk;
+- closed/weak/open boundary semantics covered by tests;
+- enstrophy-balance diagnostics covered by analytic 2D limits;
+- no provisional risk threshold described as a physical constant;
+- no numerical blow-up labelled a proven singularity.
+
+Failure of any credibility gate means `NO_CLAIM` for that run rather than a
+weaker wording of the same scientific claim.
