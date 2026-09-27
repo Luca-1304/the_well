@@ -273,7 +273,105 @@ class PeriodicSpectralNavierStokes3D:
             (mx <= cutoff) & (my <= cutoff) & (mz <= cutoff)
         ).to(self.device)
 
+    def input_records(self) -> tuple[ScalarInputRecord, ...]:
+        return (
+            ScalarInputRecord(
+                name="domain_length",
+                value=self.config.domain_length,
+                unit="nondimensional_length",
+                uncertainty=0.0,
+                source="SpectralSimulationConfig",
+            ),
+            ScalarInputRecord(
+                name="viscosity",
+                value=self.config.viscosity,
+                unit="nondimensional_kinematic_viscosity",
+                uncertainty=0.0,
+                source="SpectralSimulationConfig",
+            ),
+            ScalarInputRecord(
+                name="scalar_diffusivity",
+                value=self.config.scalar_diffusivity,
+                unit="nondimensional_diffusivity",
+                uncertainty=0.0,
+                source="SpectralSimulationConfig",
+            ),
+            ScalarInputRecord(
+                name="density",
+                value=self.config.density,
+                unit="nondimensional_density",
+                uncertainty=0.0,
+                source="SpectralSimulationConfig",
+            ),
+            ScalarInputRecord(
+                name="time_step",
+                value=self.config.time_step,
+                unit="nondimensional_time",
+                uncertainty=0.0,
+                source="SpectralSimulationConfig",
+            ),
+        )
+
+    def configuration_payload(self) -> dict[str, object]:
+        return {
+            "grid_size": self.config.grid_size,
+            "domain_length": self.config.domain_length,
+            "viscosity": self.config.viscosity,
+            "scalar_diffusivity": self.config.scalar_diffusivity,
+            "density": self.config.density,
+            "time_step": self.config.time_step,
+            "final_time": self.config.final_time,
+            "cfl_safety": self.config.cfl_safety,
+            "dealias": self.config.dealias,
+            "controller_enabled": self.config.controller_enabled,
+            "controller_sign": self.config.controller_sign,
+            "sensor_vorticity_scale": self.config.sensor_vorticity_scale,
+            "boundary_mode": self.config.boundary.mode.value,
+            "boundary_capacity": self.config.boundary.capacity,
+            "boundary_permeability": self.config.boundary.permeability,
+            "boundary_coupling": self.config.boundary.coupling,
+            "environmental_strength": self.config.boundary.environmental_strength,
+            "environment_sign": self.config.environment_sign,
+            "environment_component_weights": list(
+                self.config.environment_component_weights
+            ),
+        }
+
+    def run_manifest(self, *, code_version: str = "unverified-working-tree") -> RunManifest:
+        manifest = RunManifest(
+            code_version=code_version,
+            model_version="metamorphosis-3d-spectral-v1",
+            initial_condition_id="taylor-green-3d",
+            boundary_condition="periodic",
+            solver="fourier-pseudospectral-rk4-step-doubling",
+            precision=str(self.dtype).replace("torch.", ""),
+            grid_shape=(
+                self.config.grid_size,
+                self.config.grid_size,
+                self.config.grid_size,
+            ),
+            time_step=self.config.time_step,
+            random_seed=0,
+            configuration_fingerprint=configuration_fingerprint(
+                self.configuration_payload()
+            ),
+        )
+        manifest.validate()
+        return manifest
+
     def validity_gate(self) -> ValidityGate:
+        try:
+            validate_input_records(self.input_records())
+            self.run_manifest()
+        except ValueError:
+            return ValidityGate(
+                units_valid=False,
+                domain_valid=True,
+                inputs_complete=False,
+                initial_conditions_valid=True,
+                boundary_conditions_valid=True,
+                identifiable=True,
+            )
         return ValidityGate(
             units_valid=True,
             domain_valid=True,
@@ -427,11 +525,12 @@ class PeriodicSpectralNavierStokes3D:
             self.config.environment_sign * boundary.environmental_influence
         )
         scale = 2.0 * math.pi / self.config.domain_length
+        weights = self.config.environment_component_weights
         return amplitude * torch.stack(
             (
-                torch.sin(scale * self.y),
-                torch.sin(scale * self.z),
-                torch.sin(scale * self.x),
+                weights[0] * torch.sin(scale * self.y),
+                weights[1] * torch.sin(scale * self.z),
+                weights[2] * torch.sin(scale * self.x),
             ),
             dim=-1,
         )
@@ -463,8 +562,11 @@ class PeriodicSpectralNavierStokes3D:
         environmental = self.environment_force(boundary)
 
         if self.config.controller_enabled:
-            omega = self.spectral_vorticity(velocity_hat)
-            control = vorticity_weighted_damping_force(
+            omega = (
+                self.config.sensor_vorticity_scale
+                * self.spectral_vorticity(velocity_hat)
+            )
+            control = self.config.controller_sign * vorticity_weighted_damping_force(
                 velocity,
                 omega,
                 self.config.controller,
