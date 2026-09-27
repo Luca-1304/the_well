@@ -46,3 +46,26 @@ Before this branch can be treated as verified software evidence, require:
 
 Failure of any credibility gate means `NO_CLAIM` for that run rather than a
 weaker wording of the same scientific claim.
+
+## 3D solver verification additions
+
+The first real 3D implementation must additionally satisfy:
+
+- the Taylor-Green initial condition is divergence-free under the spectral projection;
+- the initial 3D field has non-zero vortex stretching;
+- unforced viscous energy decreases over the short analytic/benchmark horizon;
+- periodic passive-scalar mass is retained within numerical tolerance;
+- live observation/model mismatch reduces experimental control authority inside the time loop;
+- containment breach changes the environment-coupling regime during the run;
+- uncontrolled and controlled lanes use the same deterministic initial state;
+- the finite-difference/RK2 cross-check agrees with the spectral/RK4 result over a short horizon within predeclared tolerances;
+- the finite-difference path is never described as fully independent in pressure treatment because both current periodic solvers use Fourier projection;
+- a real-wall containment claim remains blocked until a literal boundary-mechanics solver exists.
+
+Focused commands:
+
+```bash
+pytest tests/test_metamorphosis_solver3d.py
+pytest tests/test_metamorphosis_cross_validation.py
+python -m the_well.research.metamorphosis.run_3d_simulation
+```
