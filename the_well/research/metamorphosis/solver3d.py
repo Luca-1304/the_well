@@ -29,8 +29,8 @@ from .safety import (
     BoundaryMode,
     BoundaryState,
     OperationalMode,
-    SafetyDecision,
     RunManifest,
+    SafetyDecision,
     SafetyThresholds,
     ScalarInputRecord,
     ValidityGate,
@@ -128,12 +128,8 @@ class SpectralSimulationConfig:
             raise ValueError("environment_sign must be either -1 or 1")
         if self.controller_sign not in (-1.0, 1.0):
             raise ValueError("controller_sign must be either -1 or 1")
-        if (
-            len(self.environment_component_weights) != 3
-            or any(
-                not math.isfinite(value)
-                for value in self.environment_component_weights
-            )
+        if len(self.environment_component_weights) != 3 or any(
+            not math.isfinite(value) for value in self.environment_component_weights
         ):
             raise ValueError(
                 "environment_component_weights must contain three finite values"
@@ -147,9 +143,7 @@ class SpectralSimulationConfig:
         if self.watchdog_divergence_limit <= 0 or not math.isfinite(
             self.watchdog_divergence_limit
         ):
-            raise ValueError(
-                "watchdog_divergence_limit must be finite and positive"
-            )
+            raise ValueError("watchdog_divergence_limit must be finite and positive")
         if self.watchdog_energy_residual_limit <= 0 or not math.isfinite(
             self.watchdog_energy_residual_limit
         ):
@@ -264,7 +258,9 @@ class PeriodicSpectralNavierStokes3D:
         axis = torch.arange(n, dtype=dtype, device=self.device) * self.dx
         self.x, self.y, self.z = torch.meshgrid(axis, axis, axis, indexing="ij")
 
-        frequency = torch.fft.fftfreq(n, d=self.dx, device=self.device) * (2.0 * math.pi)
+        frequency = torch.fft.fftfreq(n, d=self.dx, device=self.device) * (
+            2.0 * math.pi
+        )
         frequency = frequency.to(dtype)
         self.kx, self.ky, self.kz = torch.meshgrid(
             frequency, frequency, frequency, indexing="ij"
@@ -281,9 +277,9 @@ class PeriodicSpectralNavierStokes3D:
             integer_modes, integer_modes, integer_modes, indexing="ij"
         )
         cutoff = n / 3.0
-        self.dealias_mask = (
-            (mx <= cutoff) & (my <= cutoff) & (mz <= cutoff)
-        ).to(self.device)
+        self.dealias_mask = ((mx <= cutoff) & (my <= cutoff) & (mz <= cutoff)).to(
+            self.device
+        )
 
     def input_records(self) -> tuple[ScalarInputRecord, ...]:
         return (
@@ -352,7 +348,9 @@ class PeriodicSpectralNavierStokes3D:
             ),
         }
 
-    def run_manifest(self, *, code_version: str = "unverified-working-tree") -> RunManifest:
+    def run_manifest(
+        self, *, code_version: str = "unverified-working-tree"
+    ) -> RunManifest:
         manifest = RunManifest(
             code_version=code_version,
             model_version="metamorphosis-3d-spectral-v1",
@@ -529,16 +527,12 @@ class PeriodicSpectralNavierStokes3D:
             row = []
             for wave_number in wave_numbers:
                 derivative_hat = 1j * wave_number * velocity_hat[..., component]
-                row.append(
-                    torch.fft.ifftn(derivative_hat, dim=(0, 1, 2)).real
-                )
+                row.append(torch.fft.ifftn(derivative_hat, dim=(0, 1, 2)).real)
             gradients.append(row)
         return gradients
 
     def environment_force(self, boundary: BoundaryState) -> Tensor:
-        amplitude = (
-            self.config.environment_sign * boundary.environmental_influence
-        )
+        amplitude = self.config.environment_sign * boundary.environmental_influence
         scale = 2.0 * math.pi / self.config.domain_length
         weights = self.config.environment_component_weights
         phase_x = scale * self.x
@@ -561,9 +555,7 @@ class PeriodicSpectralNavierStokes3D:
 
     def _dynamic_boundary(self, velocity: Tensor) -> BoundaryState:
         speed_squared = (velocity * velocity).sum(dim=-1)
-        load = 0.5 * self.config.density * float(
-            speed_squared.amax().detach().cpu()
-        )
+        load = 0.5 * self.config.density * float(speed_squared.amax().detach().cpu())
         boundary = replace(self.config.boundary, load=load)
         if boundary.containment_failed and boundary.mode is not BoundaryMode.OPEN:
             return BoundaryState(
@@ -597,9 +589,8 @@ class PeriodicSpectralNavierStokes3D:
                 raise ValueError("control_override must match velocity shape")
             control = control_override
         elif self.config.controller_enabled:
-            omega = (
-                self.config.sensor_vorticity_scale
-                * self.spectral_vorticity(velocity_hat)
+            omega = self.config.sensor_vorticity_scale * self.spectral_vorticity(
+                velocity_hat
             )
             control = self.config.controller_sign * vorticity_weighted_damping_force(
                 velocity,
@@ -660,18 +651,14 @@ class PeriodicSpectralNavierStokes3D:
         scalar_gradients = []
         for wave_number in (self.kx, self.ky, self.kz):
             gradient_hat = 1j * wave_number * scalar_hat
-            scalar_gradients.append(
-                torch.fft.ifftn(gradient_hat, dim=(0, 1, 2)).real
-            )
+            scalar_gradients.append(torch.fft.ifftn(gradient_hat, dim=(0, 1, 2)).real)
         scalar_advection = (
             velocity[..., 0] * scalar_gradients[0]
             + velocity[..., 1] * scalar_gradients[1]
             + velocity[..., 2] * scalar_gradients[2]
         )
         scalar_rhs = (
-            -self._apply_dealias(
-                torch.fft.fftn(scalar_advection, dim=(0, 1, 2))
-            )
+            -self._apply_dealias(torch.fft.fftn(scalar_advection, dim=(0, 1, 2)))
             - self.config.scalar_diffusivity * self.k_squared * scalar_hat
         )
         return velocity_rhs, scalar_rhs
@@ -708,15 +695,9 @@ class PeriodicSpectralNavierStokes3D:
             authority_scale,
             control_override=control_override,
         )
-        next_velocity = velocity_hat + (dt / 6.0) * (
-            k1u + 2.0 * k2u + 2.0 * k3u + k4u
-        )
-        next_scalar = scalar_hat + (dt / 6.0) * (
-            k1c + 2.0 * k2c + 2.0 * k3c + k4c
-        )
-        next_velocity = self.project_velocity_hat(
-            self._apply_dealias(next_velocity)
-        )
+        next_velocity = velocity_hat + (dt / 6.0) * (k1u + 2.0 * k2u + 2.0 * k3u + k4u)
+        next_scalar = scalar_hat + (dt / 6.0) * (k1c + 2.0 * k2c + 2.0 * k3c + k4c)
+        next_velocity = self.project_velocity_hat(self._apply_dealias(next_velocity))
         next_scalar = self._apply_dealias(next_scalar)
         return next_velocity, next_scalar
 
@@ -732,9 +713,7 @@ class PeriodicSpectralNavierStokes3D:
         )
         diffusivity = max(self.config.viscosity, self.config.scalar_diffusivity)
         diffusive_limit = (
-            float("inf")
-            if diffusivity == 0.0
-            else 0.15 * self.dx**2 / diffusivity
+            float("inf") if diffusivity == 0.0 else 0.15 * self.dx**2 / diffusivity
         )
         return min(
             self.config.time_step,
@@ -769,12 +748,7 @@ class PeriodicSpectralNavierStokes3D:
                 squared = squared + derivative * derivative
         cell_volume = self.dx**3
         return float(
-            (
-                self.config.density
-                * self.config.viscosity
-                * squared.sum()
-                * cell_volume
-            )
+            (self.config.density * self.config.viscosity * squared.sum() * cell_volume)
             .detach()
             .cpu()
         )
@@ -782,9 +756,7 @@ class PeriodicSpectralNavierStokes3D:
     def _control_effort(self, control: Tensor) -> float:
         cell_volume = self.dx**3
         return float(
-            (
-                torch.linalg.vector_norm(control, dim=-1).sum() * cell_volume
-            )
+            (torch.linalg.vector_norm(control, dim=-1).sum() * cell_volume)
             .detach()
             .cpu()
         )
@@ -797,9 +769,7 @@ class PeriodicSpectralNavierStokes3D:
         numerator = torch.linalg.vector_norm(difference.reshape(-1))
         denominator = torch.linalg.vector_norm(reference.reshape(-1))
         return float(
-            (numerator / (denominator + torch.finfo(self.dtype).eps))
-            .detach()
-            .cpu()
+            (numerator / (denominator + torch.finfo(self.dtype).eps)).detach().cpu()
         )
 
     def _verification(
@@ -847,6 +817,7 @@ class PeriodicSpectralNavierStokes3D:
             .cpu()
         )
         energy_rate = (new_energy - old_energy) / dt
+
         def power_from_force(force: Tensor) -> float:
             return float(
                 (
@@ -867,9 +838,7 @@ class PeriodicSpectralNavierStokes3D:
             abs(total_power) + abs(dissipation),
             1.0e-12,
         )
-        energy_residual = abs(
-            energy_rate - (total_power - dissipation)
-        ) / energy_scale
+        energy_residual = abs(energy_rate - (total_power - dissipation)) / energy_scale
 
         rhs_old, _ = self._rhs(
             old_velocity_hat,
@@ -899,10 +868,7 @@ class PeriodicSpectralNavierStokes3D:
 
         spectral_omega = self.spectral_vorticity(new_velocity_hat)
         spectral_omega_max = float(
-            torch.linalg.vector_norm(spectral_omega, dim=-1)
-            .amax()
-            .detach()
-            .cpu()
+            torch.linalg.vector_norm(spectral_omega, dim=-1).amax().detach().cpu()
         )
         finite_difference_metrics = compute_metrics(
             new_velocity,
@@ -1022,13 +988,9 @@ class PeriodicSpectralNavierStokes3D:
 
         positive_environmental_power = max(environmental_power, 0.0)
         power_external_risk = positive_environmental_power / (
-            positive_environmental_power
-            + viscous_energy_dissipation
-            + 1.0e-12
+            positive_environmental_power + viscous_energy_dissipation + 1.0e-12
         )
-        containment_risk = boundary.load / (
-            boundary.load + boundary.capacity
-        )
+        containment_risk = boundary.load / (boundary.load + boundary.capacity)
         dynamic_external_risk = max(
             self.config.external_risk,
             power_external_risk,
@@ -1036,9 +998,7 @@ class PeriodicSpectralNavierStokes3D:
         )
         positive_control_power = max(control_power, 0.0)
         control_injection_risk = positive_control_power / (
-            positive_control_power
-            + viscous_energy_dissipation
-            + 1.0e-12
+            positive_control_power + viscous_energy_dissipation + 1.0e-12
         )
         dynamic_control_risk = max(
             self.config.control_risk,
@@ -1077,35 +1037,30 @@ class PeriodicSpectralNavierStokes3D:
                 self.config.viscosity,
             )
         )
-        stretching_production_value = float(
-            stretching_production.detach().cpu()
-        )
-        viscous_enstrophy_dissipation = float(
-            viscous_dissipation.detach().cpu()
-        )
+        stretching_production_value = float(stretching_production.detach().cpu())
+        viscous_enstrophy_dissipation = float(viscous_dissipation.detach().cpu())
 
-        restoring_power = (
-            viscous_energy_dissipation + max(-control_power, 0.0)
-        )
+        restoring_power = viscous_energy_dissipation + max(-control_power, 0.0)
         if restoring_power == 0.0:
             energy_power_dominance_ratio = (
-                0.0
-                if positive_environmental_power == 0.0
-                else float("inf")
+                0.0 if positive_environmental_power == 0.0 else float("inf")
             )
         else:
             energy_power_dominance_ratio = (
                 positive_environmental_power / restoring_power
             )
-        overpowering_increment = max(
-            positive_environmental_power - restoring_power,
-            0.0,
-        ) * dt
+        overpowering_increment = (
+            max(
+                positive_environmental_power - restoring_power,
+                0.0,
+            )
+            * dt
+        )
         accumulated_overpowering_energy = (
             state.accumulated_overpowering_energy + overpowering_increment
         )
-        accumulated_overpowering_fraction = (
-            accumulated_overpowering_energy / max(initial_energy, 1.0e-12)
+        accumulated_overpowering_fraction = accumulated_overpowering_energy / max(
+            initial_energy, 1.0e-12
         )
 
         positive_stretching = max(stretching_production_value, 0.0)
@@ -1129,20 +1084,11 @@ class PeriodicSpectralNavierStokes3D:
         )
         if any(not math.isfinite(value) for value in critical_values):
             watchdog_reasons.append("nonfinite_state_or_residual")
-        if (
-            verification.divergence_residual
-            > self.config.watchdog_divergence_limit
-        ):
+        if verification.divergence_residual > self.config.watchdog_divergence_limit:
             watchdog_reasons.append("divergence_limit")
-        if (
-            verification.energy_residual
-            > self.config.watchdog_energy_residual_limit
-        ):
+        if verification.energy_residual > self.config.watchdog_energy_residual_limit:
             watchdog_reasons.append("energy_accounting_limit")
-        if (
-            scalar_mass_fidelity
-            < self.config.watchdog_min_scalar_mass_fidelity
-        ):
+        if scalar_mass_fidelity < self.config.watchdog_min_scalar_mass_fidelity:
             watchdog_reasons.append("scalar_mass_fidelity")
 
         if watchdog_reasons:
