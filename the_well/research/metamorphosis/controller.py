@@ -35,6 +35,7 @@ def vorticity_weighted_damping_force(
     velocity: Tensor,
     vorticity_field: Tensor,
     config: ControllerConfig,
+    authority_scale: float = 1.0,
 ) -> Tensor:
     """Return a bounded damping baseline weighted by local vorticity.
 
@@ -44,6 +45,10 @@ def vorticity_weighted_damping_force(
     preserving continued motion.
     """
     config.validate()
+    if not 0.0 <= authority_scale <= 1.0:
+        raise ValueError("authority_scale must be between 0 and 1")
+    if authority_scale == 0.0:
+        return torch.zeros_like(velocity)
 
     if vorticity_field.ndim == velocity.ndim - 1:
         omega_magnitude = vorticity_field.abs()
@@ -60,8 +65,9 @@ def vorticity_weighted_damping_force(
         -config.proportional_gain * error * local_weight.unsqueeze(-1) * velocity
     )
     magnitude = torch.linalg.vector_norm(raw_force, dim=-1, keepdim=True)
+    effective_max_force = config.max_control_force * authority_scale
     scale = torch.clamp(
-        config.max_control_force / (magnitude + config.epsilon),
+        effective_max_force / (magnitude + config.epsilon),
         max=1.0,
     )
     return raw_force * scale
@@ -71,13 +77,19 @@ def adaptive_redistribution_force(
     velocity: Tensor,
     vorticity_field: Tensor,
     config: ControllerConfig,
+    authority_scale: float = 1.0,
 ) -> Tensor:
     """Compatibility alias for the initial damping baseline.
 
     Future pressure, boundary, thermal, and counter-vorticity controllers should
     implement actual redistribution rather than relying on this alias.
     """
-    return vorticity_weighted_damping_force(velocity, vorticity_field, config)
+    return vorticity_weighted_damping_force(
+        velocity,
+        vorticity_field,
+        config,
+        authority_scale=authority_scale,
+    )
 
 
 def regulation_ratio(
