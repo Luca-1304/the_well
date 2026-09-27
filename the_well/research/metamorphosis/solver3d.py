@@ -80,6 +80,7 @@ class SpectralSimulationConfig:
     environment_component_weights: tuple[float, float, float] = (1.0, 1.0, 1.0)
     controller_sign: float = 1.0
     sensor_vorticity_scale: float = 1.0
+    controller_delay_steps: int = 0
     watchdog_divergence_limit: float = 1.0e-6
     watchdog_energy_residual_limit: float = 1.0
     watchdog_min_scalar_mass_fidelity: float = 0.95
@@ -140,6 +141,8 @@ class SpectralSimulationConfig:
             self.sensor_vorticity_scale
         ):
             raise ValueError("sensor_vorticity_scale must be finite and positive")
+        if self.controller_delay_steps < 0:
+            raise ValueError("controller_delay_steps cannot be negative")
         if self.watchdog_divergence_limit <= 0 or not math.isfinite(
             self.watchdog_divergence_limit
         ):
@@ -326,6 +329,7 @@ class PeriodicSpectralNavierStokes3D:
             "controller_enabled": self.config.controller_enabled,
             "controller_sign": self.config.controller_sign,
             "sensor_vorticity_scale": self.config.sensor_vorticity_scale,
+            "controller_delay_steps": self.config.controller_delay_steps,
             "boundary_mode": self.config.boundary.mode.value,
             "boundary_capacity": self.config.boundary.capacity,
             "boundary_permeability": self.config.boundary.permeability,
@@ -572,11 +576,16 @@ class PeriodicSpectralNavierStokes3D:
         velocity: Tensor,
         velocity_hat: Tensor,
         authority_scale: float,
+        control_override: Tensor | None = None,
     ) -> tuple[Tensor, Tensor, Tensor, BoundaryState]:
         boundary = self._dynamic_boundary(velocity)
         environmental = self.environment_force(boundary)
 
-        if self.config.controller_enabled:
+        if control_override is not None:
+            if control_override.shape != velocity.shape:
+                raise ValueError("control_override must match velocity shape")
+            control = control_override
+        elif self.config.controller_enabled:
             omega = (
                 self.config.sensor_vorticity_scale
                 * self.spectral_vorticity(velocity_hat)
@@ -597,6 +606,7 @@ class PeriodicSpectralNavierStokes3D:
         velocity_hat: Tensor,
         scalar_hat: Tensor,
         authority_scale: float,
+        control_override: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
         velocity_hat = self.project_velocity_hat(self._apply_dealias(velocity_hat))
         velocity = self._ifft_vector(velocity_hat)
@@ -620,7 +630,10 @@ class PeriodicSpectralNavierStokes3D:
         nonlinear_hat = self.project_velocity_hat(nonlinear_hat)
 
         total_force, _, _, _ = self._forces(
-            velocity, velocity_hat, authority_scale
+            velocity,
+            velocity_hat,
+            authority_scale,
+            control_override=control_override,
         )
         force_hat = self.project_velocity_hat(
             self._apply_dealias(self._fft_vector(total_force))
@@ -658,22 +671,31 @@ class PeriodicSpectralNavierStokes3D:
         scalar_hat: Tensor,
         dt: float,
         authority_scale: float,
+        control_override: Tensor | None = None,
     ) -> tuple[Tensor, Tensor]:
-        k1u, k1c = self._rhs(velocity_hat, scalar_hat, authority_scale)
+        k1u, k1c = self._rhs(
+            velocity_hat,
+            scalar_hat,
+            authority_scale,
+            control_override=control_override,
+        )
         k2u, k2c = self._rhs(
             velocity_hat + 0.5 * dt * k1u,
             scalar_hat + 0.5 * dt * k1c,
             authority_scale,
+            control_override=control_override,
         )
         k3u, k3c = self._rhs(
             velocity_hat + 0.5 * dt * k2u,
             scalar_hat + 0.5 * dt * k2c,
             authority_scale,
+            control_override=control_override,
         )
         k4u, k4c = self._rhs(
             velocity_hat + dt * k3u,
             scalar_hat + dt * k3c,
             authority_scale,
+            control_override=control_override,
         )
         next_velocity = velocity_hat + (dt / 6.0) * (
             k1u + 2.0 * k2u + 2.0 * k3u + k4u
