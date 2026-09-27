@@ -6,6 +6,7 @@ import argparse
 import json
 from dataclasses import asdict
 
+from .controller import ControllerConfig
 from .convergence import resolution_sweep, timestep_sweep
 from .robustness import amplitude_robustness_sweep
 from .run_3d_simulation import run_twin_experiment
@@ -78,6 +79,11 @@ def main() -> None:
         viscosity=args.viscosity,
         time_step=args.time_step,
         final_time=args.final_time,
+        controller=ControllerConfig(
+            safe_vorticity=1.0,
+            proportional_gain=0.1,
+            max_control_force=1.0,
+        ),
     )
     print(json.dumps(run_verification_battery(config), indent=2))
 
