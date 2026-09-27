@@ -63,10 +63,15 @@ class PeriodicFiniteDifferenceNavierStokes3D:
             frequency, frequency, frequency, indexing="ij"
         )
         self.k_squared = self.kx**2 + self.ky**2 + self.kz**2
-        self.nonzero_k_squared = torch.where(
-            self.k_squared == 0,
-            torch.ones_like(self.k_squared),
-            self.k_squared,
+
+        self.qx = torch.sin(self.kx * self.dx) / self.dx
+        self.qy = torch.sin(self.ky * self.dx) / self.dx
+        self.qz = torch.sin(self.kz * self.dx) / self.dx
+        self.q_squared = self.qx**2 + self.qy**2 + self.qz**2
+        self.nonzero_q_squared = torch.where(
+            self.q_squared == 0,
+            torch.ones_like(self.q_squared),
+            self.q_squared,
         )
 
     def taylor_green_initial_velocity(self, amplitude: float = 1.0) -> Tensor:
@@ -99,14 +104,14 @@ class PeriodicFiniteDifferenceNavierStokes3D:
 
     def project(self, velocity: Tensor) -> Tensor:
         velocity_hat = torch.fft.fftn(velocity, dim=(0, 1, 2))
-        k_dot_u = (
-            self.kx * velocity_hat[..., 0]
-            + self.ky * velocity_hat[..., 1]
-            + self.kz * velocity_hat[..., 2]
+        q_dot_u = (
+            self.qx * velocity_hat[..., 0]
+            + self.qy * velocity_hat[..., 1]
+            + self.qz * velocity_hat[..., 2]
         )
-        velocity_hat[..., 0] -= self.kx * k_dot_u / self.nonzero_k_squared
-        velocity_hat[..., 1] -= self.ky * k_dot_u / self.nonzero_k_squared
-        velocity_hat[..., 2] -= self.kz * k_dot_u / self.nonzero_k_squared
+        velocity_hat[..., 0] -= self.qx * q_dot_u / self.nonzero_q_squared
+        velocity_hat[..., 1] -= self.qy * q_dot_u / self.nonzero_q_squared
+        velocity_hat[..., 2] -= self.qz * q_dot_u / self.nonzero_q_squared
         return torch.fft.ifftn(velocity_hat, dim=(0, 1, 2)).real
 
     def divergence_linf(self, velocity: Tensor) -> float:
