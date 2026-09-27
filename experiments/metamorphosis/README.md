@@ -185,3 +185,32 @@ The analytic baseline is not evidence about 3D global regularity. Its purpose is
 - Compare PINNs against conventional solvers; do not rely on one model.
 - Use `viscoelastic_instability_v2`, not the deprecated dataset.
 - Treat every failure as information about the next valid question.
+## Safety-hardening layer
+
+The research track now uses a 0→1→2→3→4 architecture:
+
+0. validate model/domain/inputs;
+1. identify and normalise drivers;
+2. specify interaction, boundary, environment, uncertainty, viability and control authority;
+3. calculate the governing dynamics;
+4. independently challenge the result and reduce authority on loss of credibility.
+
+Executable safety utilities live in `the_well.research.metamorphosis.safety`.
+The adversarial contract is `experiments/metamorphosis/SAFETY.md`, with the
+machine-readable stress matrix in `configs/safety_stress.yaml`.
+
+Safety additions include:
+
+- explicit validity gates and parameter provenance;
+- physics/numerical/uncertainty/control/external/mismatch risk separation;
+- NORMAL → RESTRICTED → SAFE → EMERGENCY → ISOLATE authority modes;
+- model-mismatch detection that automatically reduces control authority;
+- closed, weak-containment and open boundary/environment scenarios;
+- overpowering-event diagnostics for dominance, duration, response speed,
+  concentration, geometry, coupling, cascades and recoverability;
+- minimum tested distance-to-failure and recovery-cost metrics;
+- deterministic configuration fingerprints for reproducibility;
+- enstrophy, stretching-production and viscous-dissipation integral diagnostics.
+
+The safety layer is a credibility and containment mechanism, not evidence of
+global regularity and not a substitute for an independent solver.
