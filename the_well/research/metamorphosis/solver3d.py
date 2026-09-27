@@ -745,9 +745,7 @@ class PeriodicSpectralNavierStokes3D:
         All spatial derivatives use the same Fourier representation as the
         primary time-stepper, so this is the native periodic balance diagnostic.
         """
-        velocity_hat = self.project_velocity_hat(
-            self._apply_dealias(velocity_hat)
-        )
+        velocity_hat = self.project_velocity_hat(self._apply_dealias(velocity_hat))
         omega = self.spectral_vorticity(velocity_hat)
         velocity_gradients = self._velocity_gradients(velocity_hat)
         stretching = torch.stack(
@@ -762,14 +760,10 @@ class PeriodicSpectralNavierStokes3D:
         )
         cell_volume = self.dx**3
         total_enstrophy = 0.5 * float(
-            ((omega * omega).sum(dim=-1).sum() * cell_volume)
-            .detach()
-            .cpu()
+            ((omega * omega).sum(dim=-1).sum() * cell_volume).detach().cpu()
         )
         stretching_production = float(
-            ((omega * stretching).sum(dim=-1).sum() * cell_volume)
-            .detach()
-            .cpu()
+            ((omega * stretching).sum(dim=-1).sum() * cell_volume).detach().cpu()
         )
 
         omega_hat = self._fft_vector(omega)
@@ -782,11 +776,7 @@ class PeriodicSpectralNavierStokes3D:
                 ).real
                 gradient_squared = gradient_squared + derivative * derivative
         viscous_dissipation = float(
-            (
-                self.config.viscosity
-                * gradient_squared.sum()
-                * cell_volume
-            )
+            (self.config.viscosity * gradient_squared.sum() * cell_volume)
             .detach()
             .cpu()
         )
