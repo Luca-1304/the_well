@@ -49,3 +49,17 @@ def test_closed_boundary_rejects_nonzero_permeability() -> None:
 
 def test_missing_recovery_returns_infinite_cost() -> None:
     assert math.isinf(minimum_recovery_cost([1.0, 2.0], [False, False]))
+
+
+def test_non_breachable_containment_does_not_transition_on_capacity_exceedance() -> None:
+    boundary = BoundaryState(
+        mode=BoundaryMode.CLOSED_STRONG,
+        load=100.0,
+        capacity=1.0,
+        permeability=0.0,
+        coupling=1.0,
+        environmental_strength=100.0,
+        breachable=False,
+    )
+    assert not boundary.containment_failed
+    assert boundary.environmental_influence == 0.0
