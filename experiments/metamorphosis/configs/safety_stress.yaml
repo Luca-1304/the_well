@@ -1,0 +1,103 @@
+experiment:
+  name: safety_stress_matrix
+  architecture: "0->1->2->3->4"
+  purpose: >-
+    Adversarially challenge Metamorphosis calculations and force loss of model
+    credibility to reduce control authority.
+
+validity_gate:
+  require_units: true
+  require_domain_validity: true
+  require_complete_inputs: true
+  require_initial_conditions: true
+  require_boundary_conditions: true
+  require_identifiability_review: true
+
+risk:
+  aggregation: maximum_component
+  thresholds:
+    status: provisional_until_calibrated
+    restricted: 0.20
+    safe: 0.40
+    emergency: 0.70
+    isolate: 0.90
+  authority_scale:
+    normal: 1.00
+    restricted: 0.50
+    safe: 0.25
+    emergency: 0.10
+    isolate: 0.00
+
+verification:
+  track:
+    - pde_residual
+    - divergence_residual
+    - energy_residual
+    - solver_discrepancy
+    - convergence_error
+    - observation_mismatch
+    - uncertainty
+    - validated_domain_distance
+  require_independent_solver: true
+  require_spatial_refinement: true
+  require_timestep_refinement: true
+  require_energy_accounting: true
+  require_uncertainty_reporting: true
+
+boundary_scenarios:
+  - mode: closed_strong
+    environmental_transfer_channel: closed
+    require_capacity_check: true
+  - mode: weak_containment
+    environmental_transfer_channel: partial
+    require_capacity_check: true
+    permit_boundary_failure_transition: true
+  - mode: open
+    environmental_transfer_channel: continuous
+    require_flux_accounting: true
+
+overpowering_event:
+  track:
+    - disturbance_to_restoring_ratio
+    - accumulated_exceedance
+    - response_to_disturbance_timescale_ratio
+    - concentration_factor
+    - geometry_gain
+    - coupling
+    - cascade_gain
+    - recoverability_distance
+
+robustness:
+  find_minimum_outcome_flip: true
+  find_minimum_recovery_cost: true
+  require_reachability_review: true
+
+human_error:
+  require_units: true
+  require_provenance: true
+  require_configuration_fingerprint: true
+  preserve_known_good_versions: 3
+  silent_coercion_allowed: false
+
+adversarial_injections:
+  - wrong_parameter
+  - corrupted_state
+  - wrong_boundary_condition
+  - delayed_forcing
+  - excessive_timestep
+  - coarse_grid
+  - sign_reversed_control
+  - actuator_saturation
+  - missing_forcing_component
+  - changing_environment
+  - sensor_drift
+  - hidden_state_perturbation
+  - cancellation_precision_loss
+  - model_domain_violation
+  - common_mode_solver_failure
+  - unit_or_configuration_error
+
+claims:
+  failed_credibility_gate: NO_CLAIM
+  unresolved_model_mismatch: UNTRUSTED_MODEL_REGIME
+  unresolved_blowup_signal: CANDIDATE_SINGULARITY
